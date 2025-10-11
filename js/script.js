@@ -1,3 +1,10 @@
+console.log("DEBUG: script.js loaded");
+console.log("DEBUG: elements:", {
+  canvas: document.getElementById("gameCanvas"),
+  leftBtn: document.getElementById("leftBtn"),
+  rightBtn: document.getElementById("rightBtn"),
+  overlay: document.getElementById("overlay")
+});
 // सरल कार रेसिंग — टिप्पणी हिंदी में
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
