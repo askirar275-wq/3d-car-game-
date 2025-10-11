@@ -1,17 +1,20 @@
 <!DOCTYPE html>
 <html lang="hi">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>कार रेसिंग गेम (Debug Enabled)</title>
-  <link rel="stylesheet" href="style.css" />
-  <!-- Eruda को यहाँ include कर रहे हैं ताकि मोबाइल/desktop पर console खुले -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>कार रेसिंग गेम</title>
+
+  <!-- अब css फ़ोल्डर के अंदर की फाइल को लिंक किया गया है -->
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- Eruda debug console (optional, हटा सकते हो बाद में) -->
   <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
   <script>eruda.init();</script>
 </head>
 <body>
   <div class="container">
-    <h1>🚗 कार रेसिंग गेम (Debug Mode)</h1>
+    <h1>🚗 कार रेसिंग गेम 🚦</h1>
 
     <div id="hud">
       <div id="score">स्कोर: 0</div>
@@ -25,7 +28,6 @@
       <button id="rightBtn" class="touch-btn">▶</button>
     </div>
 
-    <!-- overlay को hidden क्लास से छुपाया गया है; script में visible तभी होगा जब गेम ओवर हो -->
     <div id="overlay" class="hidden">
       <div id="overlayBox">
         <h2 id="overlayTitle">गेम ओवर</h2>
@@ -36,12 +38,14 @@
 
     <p class="note">कीबोर्ड: ← / → — मोबाइल: बटन दबाओ</p>
 
-    <!-- छोटे diagnostic message area (अगर console नहीं देख पाते तो यहाँ दिखेगा) -->
-    <div id="diag" style="position:fixed;left:8px;bottom:8px;background:#000;color:#fff;padding:6px;z-index:9999;border-radius:6px;font-size:12px;">
+    <!-- छोटा debug टेक्स्ट (Eruda के साथ काम करता है) -->
+    <div id="diag"
+      style="position:fixed;left:8px;bottom:8px;background:#000;color:#fff;padding:6px;z-index:9999;border-radius:6px;font-size:12px;">
       DEBUG: waiting...
     </div>
   </div>
 
-  <script src="script.js"></script>
+  <!-- अब js फ़ोल्डर के अंदर की फाइल को लिंक किया गया है -->
+  <script src="js/script.js"></script>
 </body>
-  </html>
+</html>
