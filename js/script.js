@@ -1,26 +1,67 @@
-console.log("DEBUG: script.js loaded");
-console.log("DEBUG: elements:", {
+/* Debug-enabled script.js — अतिरिक्त console.logs और diag messages दिए गए हैं */
+
+// Diagnostic helper: page पर छोटा संदेश और console log दोनों भेजना
+function diagLog(...args) {
+  console.log(...args);
+  const d = document.getElementById("diag");
+  if (d) d.textContent = "DEBUG: " + args.map(a => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' | ');
+}
+
+// सूचित करें कि script लोड हुआ
+diagLog("script.js loaded");
+
+// Network / resource quick-check
+function checkResources() {
+  const resources = ["style.css", "script.js"];
+  resources.forEach(r => {
+    fetch(r, { method: 'HEAD' }).then(res => {
+      diagLog(`RESOURCE ${r}:`, res.status);
+      console.log(`RESOURCE ${r}:`, res);
+    }).catch(err => {
+      diagLog(`RESOURCE ${r} fetch failed: ${err}`);
+      console.error(err);
+    });
+  });
+}
+checkResources();
+
+// DOM elements diagnostic
+diagLog("elements:", {
   canvas: document.getElementById("gameCanvas"),
   leftBtn: document.getElementById("leftBtn"),
   rightBtn: document.getElementById("rightBtn"),
   overlay: document.getElementById("overlay")
 });
-// सरल कार रेसिंग — टिप्पणी हिंदी में
-const canvas = document.getElementById("gameCanvas");
-const ctx = canvas.getContext("2d");
 
-// स्कोर और HUD
+// अगर कोई element null है तो console में दिखाओ
+if (!document.getElementById("gameCanvas")) {
+  console.error("ERROR: gameCanvas element not found!");
+}
+
+// --- गेम कोड (पहले जैसा) ---
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas ? canvas.getContext("2d") : null;
+
 const scoreEl = document.getElementById("score");
 const speedEl = document.getElementById("speed");
 const overlay = document.getElementById("overlay");
 const finalScore = document.getElementById("finalScore");
 const restartBtn = document.getElementById("restartBtn");
-
-// टच बटन
 const leftBtn = document.getElementById("leftBtn");
 const rightBtn = document.getElementById("rightBtn");
 
-// कैनवास की आंतरिक रचना (रीसाइज़िंग के लिए)
+if (!canvas || !ctx) {
+  diagLog("Canvas or context missing — aborting game loop.");
+  // अगर canvas नहीं है तो overlay में error दिखाओ
+  if (overlay) {
+    overlay.classList.remove("hidden");
+    document.getElementById("overlayTitle").textContent = "Error: Canvas missing";
+    finalScore.textContent = "Console में देखें: canvas नहीं मिला";
+  }
+  throw new Error("Canvas missing");
+}
+
+// कैनवास साइज constants
 const W = canvas.width;
 const H = canvas.height;
 
@@ -34,16 +75,12 @@ const car = {
   speedX: 6
 };
 
-// सामने आने वाली (enemy) कारें
 let enemies = [];
 let spawnTimer = 0;
-let spawnInterval = 90; // फ्रेम्स के हिसाब से
-let gameSpeed = 1; // जितना बड़ा होगा, कठिनाई उतनी
+let spawnInterval = 90;
+let gameSpeed = 1;
 let score = 0;
 let running = true;
-
-// रोड लाइन्स के लिए
-const lanes = [W/4 - 20, W/2 - 25, 3*W/4 - 30]; // optional visual lanes
 
 // कीबोर्ड कंट्रोल
 document.addEventListener("keydown", (e) => {
@@ -52,18 +89,21 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowRight") moveRight();
 });
 
-// टच बटन ईवेंट्स (mobile friendly)
-leftBtn.addEventListener("touchstart", (e) => { e.preventDefault(); moveLeft(); });
-rightBtn.addEventListener("touchstart", (e) => { e.preventDefault(); moveRight(); });
-leftBtn.addEventListener("mousedown", moveLeft);
-rightBtn.addEventListener("mousedown", moveRight);
+// टच/माउस ईवेंट
+if (leftBtn && rightBtn) {
+  leftBtn.addEventListener("touchstart", (e) => { e.preventDefault(); moveLeft(); });
+  rightBtn.addEventListener("touchstart", (e) => { e.preventDefault(); moveRight(); });
+  leftBtn.addEventListener("mousedown", moveLeft);
+  rightBtn.addEventListener("mousedown", moveRight);
+} else {
+  diagLog("Touch buttons not found:", {leftBtn: !!leftBtn, rightBtn: !!rightBtn});
+}
 
-// रीस्टार्ट बटन
-restartBtn.addEventListener("click", () => {
+restartBtn && restartBtn.addEventListener("click", () => {
   resetGame();
 });
 
-// बाएँ / दाएँ मूव फंक्शन
+// move functions
 function moveLeft() {
   car.x -= car.speedX * 1.6;
   if (car.x < 10) car.x = 10;
@@ -73,9 +113,7 @@ function moveRight() {
   if (car.x > W - car.w - 10) car.x = W - car.w - 10;
 }
 
-// enemy बनाओ
 function spawnEnemy() {
-  // चौड़ाई और x-position random पर
   const w = 40 + Math.random() * 40;
   const x = 10 + Math.random() * (W - w - 20);
   const h = 70;
@@ -83,7 +121,6 @@ function spawnEnemy() {
   enemies.push({ x, y: -h, w, h, speed, color: "#2ea6ff" });
 }
 
-// collision check (AABB)
 function isColliding(a, b) {
   return !(a.x + a.w < b.x ||
            a.x > b.x + b.w ||
@@ -91,8 +128,8 @@ function isColliding(a, b) {
            a.y > b.y + b.h);
 }
 
-// गेम रिसेट
 function resetGame() {
+  diagLog("resetGame called");
   enemies = [];
   spawnTimer = 0;
   spawnInterval = 90;
@@ -104,13 +141,10 @@ function resetGame() {
   loop();
 }
 
-// मुख्य ड्रॉ फंक्शन
 function drawRoad() {
-  // सड़क बैकग्राउंड
   ctx.fillStyle = "#3a3a3a";
   ctx.fillRect(20, 0, W - 40, H);
 
-  // बीच की डिवाइडर लाइनें
   ctx.strokeStyle = "#bbbbbb";
   ctx.lineWidth = 4;
   ctx.setLineDash([20, 20]);
@@ -121,61 +155,53 @@ function drawRoad() {
   ctx.setLineDash([]);
 }
 
-// खेल का मुख्य लूप
 function loop() {
   if (!running) return;
 
-  // बैकग्राउंड
   ctx.clearRect(0, 0, W, H);
   drawRoad();
 
-  // खिलाड़ी कार ड्रॉ
+  // player
   ctx.fillStyle = car.color;
   roundRect(ctx, car.x, car.y, car.w, car.h, 8, true, false);
 
-  // enemy spawn logic
+  // spawn logic
   spawnTimer++;
   if (spawnTimer > spawnInterval) {
     spawnEnemy();
     spawnTimer = 0;
-    // धीरे-धीरे spawn तेज करें
     if (spawnInterval > 40) spawnInterval -= 2;
+    diagLog("spawned enemy, spawnInterval:", spawnInterval, "enemies:", enemies.length);
   }
 
-  // enemies अपडेट और ड्रॉ
+  // update enemies
   for (let i = enemies.length - 1; i >= 0; i--) {
     const e = enemies[i];
     e.y += e.speed * (1 + gameSpeed*0.2);
 
-    // ड्रॉ enemy
     ctx.fillStyle = e.color;
     roundRect(ctx, e.x, e.y, e.w, e.h, 6, true, false);
 
-    // टक्कर जाँच
     if (isColliding(car, e)) {
-      // गेम ओवर
       running = false;
       showGameOver();
+      console.error("Collision detected", {car, enemy: e, score});
     }
 
-    // स्क्रीन के बाहर जाने पर हटाओ और स्कोर बढ़ाओ
     if (e.y > H + 50) {
       enemies.splice(i, 1);
       score += 10 + Math.floor(gameSpeed * 2);
-      // धीरे-धीरे स्पीड बढ़ाओ
       if (score % 100 === 0) gameSpeed += 0.5;
     }
   }
 
-  // HUD अपडेट
+  // HUD
   scoreEl.textContent = "स्कोर: " + score;
   speedEl.textContent = "स्पीड: " + gameSpeed.toFixed(1);
 
-  // अगला फ्रेम
   if (running) requestAnimationFrame(loop);
 }
 
-// गोल किनारे वाली रेक्ट (सहायक)
 function roundRect(ctx, x, y, w, h, r, fill, stroke) {
   if (typeof stroke === 'undefined') stroke = true;
   if (typeof r === 'undefined') r = 5;
@@ -190,12 +216,14 @@ function roundRect(ctx, x, y, w, h, r, fill, stroke) {
   if (stroke) ctx.strokeStyle = "rgba(0,0,0,0.2)", ctx.stroke();
 }
 
-// गेम ओवर दिखाओ
 function showGameOver() {
+  console.warn("Game Over called", {score, enemies});
   overlay.classList.remove("hidden");
   finalScore.textContent = "तुम्हारा स्कोर: " + score;
   document.getElementById("overlayTitle").textContent = "गेम ओवर";
+  diagLog("Game Over displayed, score:", score);
 }
 
-// शुरू करें
+// स्टार्ट
+diagLog("Starting game loop...");
 loop();
