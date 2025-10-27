@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Debug / Auto-start Build</title>
+<title>Fruit Cut — Eruda + AutoStart</title>
 <style>
   :root{ --btn:#111; --btnHover:#333; --accent:#22c55e; }
   body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,Helvetica;margin:12px;background:#f4f7fb;color:#111}
@@ -31,7 +31,7 @@
 </head>
 <body>
 <div class="container">
-  <h1>🍉 🍑 Fruit Cut — Debug / Auto-start</h1>
+  <h1>🍉 Fruit Cut — Eruda + AutoStart</h1>
 
   <div class="hud">
     <div class="stat">Score: <strong id="scoreEl">0</strong></div>
@@ -76,21 +76,33 @@
   <p style="color:#666;margin-top:12px">Tip: Slice fruits by swiping. Avoid bombs.</p>
 </div>
 
-<div id="debug" class="debugBox"></div>
+<div id="debug" class="debugBox" style="display:none"></div>
 <div class="toast" id="toast"></div>
 
+<!-- Eruda (mobile devtools) -->
+<script src="https://cdn.jsdelivr.net/npm/eruda"></script>
+<script>eruda.init();</script>
+
 <script>
-/* Robust single-file game script with debug overlay & auto-start.
-   IMPORTANT: Put your fruit images in an "images/" folder next to this index.html:
+/* Robust single-file game script with Eruda + auto-start.
+   Ensure images/ folder (same dir as this file) contains:
    apple.png, banana.png, orange.png, strawberry.png, watermelon.png, mango.png, papaya.png, pineapple.png, pomegranate.png, bomb.png
 */
 
 (() => {
-  const DEBUG = true;
+  // show debug box on desktop for quick messages (eruda will show logs too)
   const DBG = document.getElementById('debug');
-  function dlog(msg){ if(DEBUG){ const line = document.createElement('div'); line.textContent = msg; DBG.appendChild(line); } console.log('[FC]', msg); }
+  function dlog(msg){
+    console.log('[FruitCut]', msg);
+    // show debug box on larger screens
+    if(window.innerWidth > 700){
+      DBG.style.display = 'block';
+      const line = document.createElement('div'); line.textContent = msg; DBG.appendChild(line);
+      if(DBG.childElementCount > 40) DBG.removeChild(DBG.firstChild);
+    }
+  }
 
-  // DOM refs
+  // DOM
   const gameArea = document.getElementById('gameArea');
   const bladeCanvas = document.getElementById('bladeCanvas');
   const scoreEl = document.getElementById('scoreEl');
@@ -109,10 +121,10 @@
   const shopCard = document.getElementById('shopCard');
   const gameoverCard = document.getElementById('gameoverCard');
 
-  if(!gameArea) { dlog('ERROR: #gameArea not found — index.html might be broken'); return; }
-  dlog('Elements ok');
+  if(!gameArea){ dlog('ERROR: #gameArea missing'); return; }
+  dlog('Game script loaded');
 
-  // images list
+  // image list
   const IMAGES = ["apple.png","banana.png","orange.png","strawberry.png","watermelon.png","mango.png","papaya.png","pineapple.png","pomegranate.png"];
   const BOMB = "bomb.png";
   const ALL = IMAGES.concat([BOMB]);
@@ -122,7 +134,7 @@
   let running = false, spawnTimer = null;
   const active = []; // {el,x,y,vx,vy,rot,type}
   const POOL = [];
-  const CACHE = {}; // filename -> Image object
+  const CACHE = {}; // name->Image
   let areaW = 480, areaH = 520;
 
   // tuning
@@ -131,26 +143,25 @@
   let spawnInterval = SPAWN_BASE;
   const MAX_ACTIVE = 8;
 
-  // recalc area
-  function recalcArea(){ const r = gameArea.getBoundingClientRect(); areaW = Math.max(1, Math.floor(r.width)); areaH = Math.max(1, Math.floor(r.height)); bladeCanvas.width = areaW; bladeCanvas.height = areaH; dlog('area ' + areaW + 'x' + areaH); }
+  // recalc area size
+  function recalcArea(){ const r = gameArea.getBoundingClientRect(); areaW = Math.max(1, Math.floor(r.width)); areaH = Math.max(1, Math.floor(r.height)); bladeCanvas.width = areaW; bladeCanvas.height = areaH; dlog('area: ' + areaW + 'x' + areaH); }
   window.addEventListener('resize', recalcArea);
-  setTimeout(recalcArea,80);
+  setTimeout(recalcArea, 80);
 
-  // preload images
+  // preload images from images/ folder
   async function preloadAll(){
-    dlog('Start preloading images...');
-    const list = ALL.slice(0);
-    const promises = list.map(name => new Promise(res=>{
+    dlog('preloading images...');
+    const promises = ALL.map(name => new Promise(res => {
       const img = new Image();
-      img.onload = ()=> { CACHE[name] = img; dlog('Loaded: ' + name); res(true); };
-      img.onerror = ()=> { dlog('Failed to load: ' + name); res(false); };
+      img.onload = () => { CACHE[name] = img; dlog('loaded ' + name); res(true); };
+      img.onerror = () => { dlog('failed ' + name); res(false); };
       img.src = 'images/' + name;
     }));
     await Promise.all(promises);
-    dlog('Preload finished. Cached: ' + Object.keys(CACHE).join(', '));
+    dlog('preload complete: ' + Object.keys(CACHE).join(', '));
   }
 
-  // pool element maker
+  // pool element factory
   function makeFruitEl(){
     const wrap = document.createElement('div');
     wrap.className = 'fruit';
@@ -162,15 +173,15 @@
     wrap.appendChild(img);
     return wrap;
   }
-  function acquire(){ return POOL.length ? POOL.pop() : makeFruitEl(); }
-  function release(el){ const img = el.querySelector('img'); if(img) img.src=''; if(el.parentNode) el.parentNode.removeChild(el); POOL.push(el); }
+  function acquireEl(){ return POOL.length ? POOL.pop() : makeFruitEl(); }
+  function releaseEl(el){ const img = el.querySelector('img'); if(img) img.src=''; if(el.parentNode) el.parentNode.removeChild(el); POOL.push(el); }
 
-  // spawn function
+  // spawn (uses cached src if present)
   function spawnOne(typeName){
     if(!running) return;
     if(active.length >= MAX_ACTIVE) return;
     const name = typeName || (Math.random() < 0.92 ? IMAGES[Math.floor(Math.random()*IMAGES.length)] : BOMB);
-    const el = acquire();
+    const el = acquireEl();
     const img = el.querySelector('img');
     if(CACHE[name]) img.src = CACHE[name].src; else img.src = 'images/' + name;
     // size & pos
@@ -189,10 +200,10 @@
     active.push({el, x:startX, y:startY, vx, vy, rot, type:name});
   }
 
-  // game loop
+  // main loop
   let last = performance.now();
   function step(now){
-    const dt = Math.min(40, now - last) / 16.666;
+    const dt = Math.min(40, now-last)/16.666;
     last = now;
     const maxY = areaH - 36;
     for(let i = active.length - 1; i >= 0; i--){
@@ -204,19 +215,20 @@
       if(f.y > maxY){ f.y = maxY; f.vy = -Math.abs(f.vy) * 0.45; }
       f.el.style.transform = `translate3d(${f.x}px, ${-f.y}px, 0) rotate(${f.rot}deg)`;
       if(f.x < -300 || f.x > areaW + 300 || f.y < -500){
-        release(f.el);
+        releaseEl(f.el);
         active.splice(i,1);
       }
     }
     requestAnimationFrame(step);
   }
 
-  // blade drawing & slice detection
+  // blade drawing & slicing
   const bctx = bladeCanvas.getContext('2d');
-  let bladePoints = []; const MAX_BLADE = 20;
-  function addBladePoint(cx, cy){
+  let bladePoints = [];
+  const MAX_BLADE = 20;
+  function addBladePoint(cx,cy){
     const r = gameArea.getBoundingClientRect();
-    bladePoints.push({x: cx - r.left, y: cy - r.top, t: Date.now()});
+    bladePoints.push({x:cx - r.left, y:cy - r.top, t:Date.now()});
     if(bladePoints.length > MAX_BLADE) bladePoints.shift();
     drawBlade();
   }
@@ -238,13 +250,13 @@
     return true;
   }
 
-  // pointer handling throttled
+  // pointer handling (throttled)
   let isDown=false, lastPtr=0, history=[];
-  const POINTER_THROTTLE = 22;
+  const PTR_THROTTLE = 22;
   function onDown(e){ isDown=true; history=[]; addBladePoint(e.clientX,e.clientY); e.preventDefault && e.preventDefault(); }
   function onMove(e){
     if(!isDown) return;
-    const now = Date.now(); if(now - lastPtr < POINTER_THROTTLE) return; lastPtr = now;
+    const now = Date.now(); if(now - lastPtr < PTR_THROTTLE) return; lastPtr = now;
     addBladePoint(e.clientX,e.clientY); history.push({x:e.clientX,y:e.clientY}); if(history.length>18) history.shift();
     if(history.length>=2){
       const p1 = history[history.length-2], p2 = history[history.length-1];
@@ -255,19 +267,19 @@
       }
     }
   }
-  function onUp(e){ isDown=false; history=[]; bladePoints=[]; drawBlade(); }
+  function onUp(){ isDown=false; history=[]; bladePoints=[]; drawBlade(); }
   window.addEventListener('pointerdown', onDown, {passive:false});
   window.addEventListener('pointermove', onMove, {passive:false});
   window.addEventListener('pointerup', onUp);
   window.addEventListener('pointercancel', onUp);
 
-  // slice behavior
+  // slice
   function sliceFruit(f){
     if(!f) return;
     const t = f.type || (f.el && f.el.dataset && f.el.dataset.type);
     if(t === BOMB){
       lives = Math.max(0, lives-1);
-      dlog('Bomb sliced. Lives=' + lives);
+      dlog('Bomb! lives=' + lives);
       if(lives<=0) endGame();
     } else {
       score += 10; coins += 2;
@@ -275,28 +287,20 @@
       setTimeout(()=> coinPop.style.display='none', 600);
     }
     updateHUD();
-    for(let i=active.length-1;i>=0;i--) if(active[i] === f){ release(active[i].el); active.splice(i,1); break; }
+    for(let i = active.length-1; i>=0; i--) if(active[i]===f){ releaseEl(active[i].el); active.splice(i,1); break; }
   }
 
   // HUD & controls
   function updateHUD(){ scoreEl.textContent = score; livesEl.textContent = lives; coinsEl.textContent = coins; levelEl.textContent = level; pauseBtn.disabled = !running; }
-  function startGame(){
-    if(running) return;
-    running = true; bigStart.style.display='none';
-    if(spawnTimer) clearInterval(spawnTimer);
-    spawnTimer = setInterval(()=> spawnOne(), spawnInterval);
-    spawnOne();
-    updateHUD();
-    dlog('Game started');
-  }
+  function startGame(){ if(running) return; running=true; bigStart.style.display='none'; if(spawnTimer) clearInterval(spawnTimer); spawnTimer = setInterval(()=> spawnOne(), spawnInterval); spawnOne(); updateHUD(); dlog('Game started'); }
   function pauseGame(){ running = !running; if(!running && spawnTimer){ clearInterval(spawnTimer); spawnTimer = null; } if(running && !spawnTimer) spawnTimer = setInterval(()=> spawnOne(), spawnInterval); updateHUD(); dlog('Pause toggled: ' + running); }
-  function restartGame(){ for(const f of Array.from(active)) release(f.el); active.length=0; score=0;lives=3;coins=0;level=1;running=false; if(spawnTimer){clearInterval(spawnTimer);spawnTimer=null;} bigStart.style.display='block'; updateHUD(); dlog('Game restarted'); }
-  function endGame(){ running=false; if(spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } dlog('Game over. Score=' + score); document.getElementById('goScore').textContent = 'Score: ' + score; modal.classList.remove('hidden'); shopCard.style.display='none'; gameoverCard.style.display='block'; }
+  function restartGame(){ for(const f of Array.from(active)) releaseEl(f.el); active.length=0; score=0;lives=3;coins=0;level=1;running=false; if(spawnTimer){clearInterval(spawnTimer);spawnTimer=null;} bigStart.style.display='block'; updateHUD(); dlog('Game restarted'); }
+  function endGame(){ running=false; if(spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } dlog('Game over: ' + score); document.getElementById('goScore').textContent = 'Score: ' + score; modal.classList.remove('hidden'); shopCard.style.display='none'; gameoverCard.style.display='block'; }
 
   // spawn config
   let spawnInterval = SPAWN_BASE || 900;
 
-  // wiring buttons
+  // buttons wiring
   startBtn && startBtn.addEventListener('click', startGame);
   pauseBtn && pauseBtn.addEventListener('click', pauseGame);
   restartBtn && restartBtn.addEventListener('click', restartGame);
@@ -307,22 +311,59 @@
 
   // preload + init
   (async function init(){
-    dlog('Init: preload images then start loop');
+    dlog('init: preload images + warm pool');
     await preloadAll();
     for(let i=0;i<6;i++) POOL.push(makeFruitEl());
     recalcArea();
     requestAnimationFrame(step);
     updateHUD();
-    // auto-start after short delay so you can see debug output
-    setTimeout(()=> {
-      if(!running){
-        dlog('Auto-starting game (fallback)');
-        startGame();
-      }
-    }, 300);
+    // fallback auto-start
+    setTimeout(()=> { if(!running){ dlog('Auto-start fallback'); startGame(); } }, 300);
   })();
+
+  // expose debug
+  window.__fruitcut = { CACHE, active, POOL };
+
+  // small helpers used above (declared at bottom to keep top flow readable)
+  // note: duplicates are intentionally near here to avoid hoisting confusions
+  function dlog(m){ dlog = dlog; console.log('[FC]', m); if(window.innerWidth>700){ const el = document.getElementById('debug'); el.style.display='block'; const div = document.createElement('div'); div.textContent = m; el.appendChild(div); if(el.childElementCount>60) el.removeChild(el.firstChild); } }
+  // create fruit element factory
+  function makeFruitEl(){ const wrap = document.createElement('div'); wrap.className='fruit'; wrap.style.position='absolute'; const img=document.createElement('img'); img.className='fruit-img'; img.draggable=false; img.style.display='block'; wrap.appendChild(img); return wrap; }
+  function acquireEl(){ return POOL.length? POOL.pop() : makeFruitEl(); }
+  function releaseEl(el){ const img = el.querySelector('img'); if(img) img.src=''; if(el.parentNode) el.parentNode.removeChild(el); POOL.push(el); }
+
+  // spawn wrapper used in start
+  function spawnOne(){ spawnOneFromCache(); }
+  function spawnOneFromCache(typeName){
+    if(!running) return;
+    if(active.length >= MAX_ACTIVE) return;
+    const name = typeName || (Math.random() < 0.92 ? IMAGES[Math.floor(Math.random()*IMAGES.length)] : BOMB);
+    const el = acquireEl();
+    const img = el.querySelector('img');
+    if(CACHE[name]) img.src = CACHE[name].src; else img.src = 'images/' + name;
+    const size = Math.max(80, Math.min(140, Math.floor(areaW * 0.18)));
+    img.style.width = size + 'px'; img.style.height = 'auto';
+    const startX = Math.floor(Math.random() * Math.max(1, areaW - size - 40)) + 20;
+    const startY = -150;
+    el.style.left = startX + 'px'; el.style.bottom = startY + 'px'; el.dataset.type = name;
+    gameArea.appendChild(el);
+    const vy = 18 + Math.random()*4; const vx = (Math.random()-0.5)*4.0; const rot = (Math.random()-0.5)*40;
+    active.push({el, x:startX, y:startY, vx, vy, rot, type:name});
+  }
+
+  async function preloadAll(){
+    const list = ALL.slice(0);
+    const promises = list.map(name => new Promise(res => {
+      const img = new Image();
+      img.onload = ()=> { CACHE[name] = img; dlog('loaded ' + name); res(true); };
+      img.onerror = ()=> { dlog('failed ' + name); res(false); };
+      img.src = 'images/' + name;
+    }));
+    await Promise.all(promises);
+    dlog('preload done. cached: ' + Object.keys(CACHE).join(', '));
+  }
 
 })();
 </script>
 </body>
-  </html>
+                              </html>
