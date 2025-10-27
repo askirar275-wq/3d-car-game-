@@ -3,23 +3,23 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Fruit Cut Game 🍉</title>
+<title>Fruit Cut — Offline</title>
 <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
   <div class="container">
-    <h1>🍉 Fruit Cut — English Images</h1>
+    <h1>🍉 Fruit Cut — Offline</h1>
 
     <div class="hud">
       <div class="stat">Score: <span id="score">0</span></div>
       <div class="stat">Lives: <span id="lives">3</span></div>
       <div class="stat">Coins: <span id="coins">0</span></div>
       <div class="stat">Level: <span id="level">1</span></div>
-      <div class="stat">Combo: <span id="combo">0x</span></div>
+      <div class="stat">Combo: <span id="combo">x1</span></div>
     </div>
 
     <div id="gameWrapper">
-      <div id="gameArea"></div>
+      <div id="gameArea" aria-label="Game area"></div>
       <canvas id="trailCanvas"></canvas>
       <div id="status"><span id="statusText">Running: NO</span></div>
       <button id="bigStart">START</button>
@@ -35,10 +35,10 @@
     <p class="tip">Tip: Swipe fruits to slice. Avoid bombs 💣</p>
   </div>
 
-  <!-- Shop modal -->
+  <!-- minimal shop modal (optional, native coin buy) -->
   <div id="shopModal" class="modal hidden">
     <div class="modal-card">
-      <h2>Shop — Backgrounds</h2>
+      <h2>Shop</h2>
       <div id="shopList" class="shop-list"></div>
       <div style="text-align:center;margin-top:12px">
         <button id="shopClose" class="btn">Close</button>
