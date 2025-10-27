@@ -1,146 +1,221 @@
-/* game.js - debug-friendly auto-start version
-   Replace your current js/game.js with this file (paste entire content).
-   Make sure index.html includes: <script src="js/game.js"></script>
+/* game.js - Smooth version
+   - object pooling for fruit DOM elements
+   - cached layout, throttled pointer events
+   - limited active objects, light trail
+   - put this file in js/ replacing the old one
 */
 
+/* ------------- Config (tweak these) ------------- */
 const IMG_PATHS = ["images/", "../images/", "./images/"];
 const FRUITS = ["apple.png","banana.png","orange.png","strawberry.png","watermelon.png","mango.png","papaya.png","pineapple.png","pomegranate.png"];
 const BOMB = "bomb.png";
 
-/* ---- basic state ---- */
-let score = 0, lives = 3, coins = 0, level = 1;
-let running = false, spawnTimer = null;
-const active = [];
-const IMAGE_CACHE = {};
+const MAX_ACTIVE = 9;        // max fruits on screen simultaneously (lower -> smoother)
+const SPAWN_INTERVAL = 900;  // ms between spawns (increase if device slow)
+const POINTER_THROTTLE = 22; // ms between pointer sampled positions (22 ms ~ 45 Hz)
+const TRAIL_MAX = 28;        // trail points (lower -> less draw)
+const TRAIL_LIFE = 320;      // ms trail fade
+const GRAVITY = 0.28;
+const VY_MIN = 18, VY_MAX = 22, VX_MAX = 2.1;
 
+/* ----------------- State & DOM ------------------ */
 const area = document.getElementById('gameArea');
 const statusText = document.getElementById('statusText');
 
-if(!area){
-  console.error("gameArea element not found! Check index.html for <div id='gameArea'>");
-}
-if(!statusText){
-  console.warn("statusText element not found. Add <span id='statusText'>Running: NO</span> in index.html");
-}
+let score = 0, lives = 3, coins = 0, level = 1;
+let running = false, spawnTimer = null;
+const active = [];  // active fruit objects (pool references)
+const pool = [];    // pooled DOM img elements (reusable)
+const IMAGE_CACHE = {};
 
-/* ---------- helpers ---------- */
-function rand(a,b){ return Math.random()*(b-a)+a; }
-
-function tryLoadImage(filename){
-  return new Promise(async (resolve)=>{
-    for(const base of IMG_PATHS){
-      try {
-        const url = base + filename;
-        const img = new Image();
-        await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src=url; });
-        console.log("Loaded", filename, "from", url);
-        resolve(img);
-        return;
-      } catch(e){}
-    }
-    // try direct filename
+/* ------------- helper: preload images ------------- */
+function loadImage(url){
+  return new Promise((resolve,reject)=>{
+    const img = new Image();
+    img.onload = ()=> resolve(img);
+    img.onerror = ()=> reject(url);
+    img.src = url;
+  });
+}
+async function loadFromCandidates(filename){
+  for(const base of IMG_PATHS){
     try {
-      const img = new Image();
-      await new Promise((res,rej)=>{ img.onload=res; img.onerror=rej; img.src=filename; });
-      console.log("Loaded", filename, "from direct", filename);
-      resolve(img);
-      return;
+      const img = await loadImage(base + filename);
+      return img;
     } catch(e){}
-    console.warn("Failed to load image:", filename);
-    resolve(null);
-  });
+  }
+  // try direct name
+  try{ const img = await loadImage(filename); return img; } catch(e){}
+  return null;
 }
-
 async function preloadAll(){
-  const files = FRUITS.concat([BOMB]);
-  const promises = files.map(async f=>{
-    if(IMAGE_CACHE[f]) return;
-    const img = await tryLoadImage(f);
-    if(img) IMAGE_CACHE[f] = img;
+  const list = FRUITS.concat([BOMB]);
+  const tasks = list.map(async name => {
+    if(IMAGE_CACHE[name]) return;
+    const img = await loadFromCandidates(name);
+    if(img) IMAGE_CACHE[name] = img;
   });
-  await Promise.all(promises);
-  console.log("Preload complete:", Object.keys(IMAGE_CACHE));
+  await Promise.all(tasks);
+  console.log('Images preloaded:', Object.keys(IMAGE_CACHE));
 }
 
-/* ---------- layout cache ---------- */
-let areaW=320, areaH=480;
+/* --------------- Layout cache ---------------- */
+let areaW = 400, areaH = 540;
 function recalcArea(){
   if(!area) return;
   const r = area.getBoundingClientRect();
   areaW = Math.max(1, Math.floor(r.width));
   areaH = Math.max(1, Math.floor(r.height));
   const canvas = document.getElementById('trailCanvas');
-  if(canvas){ canvas.width = areaW; canvas.height = areaH; }
+  if(canvas){ canvas.width = areaW; canvas.height = areaH; canvas.style.width = areaW + 'px'; canvas.style.height = areaH + 'px'; }
 }
 window.addEventListener('resize', ()=> recalcArea());
 setTimeout(recalcArea, 120);
 
-/* ---------- physics loop ---------- */
+/* ---------------- pooling ---------------- */
+function makePoolItem(){
+  const el = document.createElement('img');
+  el.className = 'fruit';
+  el.draggable = false;
+  el.style.position = 'absolute';
+  el.style.willChange = 'transform,opacity';
+  el.style.pointerEvents = 'none';
+  el.style.background = 'transparent';
+  return el;
+}
+function getPooledElement(){
+  if(pool.length) return pool.pop();
+  return makePoolItem();
+}
+function releaseElement(el){
+  // cleanup styling and put back to pool
+  el.style.transform = '';
+  el.style.left = '0px';
+  el.style.bottom = '0px';
+  el.src = '';
+  if(el.parentNode) el.parentNode.removeChild(el);
+  pool.push(el);
+}
+
+/* ---------------- physics loop ---------------- */
 let last = performance.now();
-function loop(t){
-  const dt = Math.min(40, t-last)/16.666;
-  last = t;
-  for(let i=active.length-1;i>=0;i--){
-    const f = active[i];
-    f.vy -= 0.28 * dt;
-    f.x += f.vx * dt;
-    f.y += f.vy * dt;
-    f.rot += f.vx * 0.7 * dt;
-    const maxY = areaH - 36;
-    if(f.y > maxY){ f.y = maxY; f.vy = -Math.abs(f.vy) * 0.5; }
-    f.el.style.transform = `translate3d(${f.x}px, ${-f.y}px, 0) rotate(${f.rot}deg)`;
-    if(f.x < -300 || f.x > areaW + 300 || f.y < -500){
-      if(f.el.parentNode) f.el.parentNode.removeChild(f.el);
+function loop(now){
+  const dt = Math.min(40, now - last) / 16.666;
+  last = now;
+  const maxY = areaH - 36;
+
+  // update active objects
+  for(let i = active.length - 1; i >= 0; i--){
+    const obj = active[i];
+    obj.vy -= GRAVITY * dt;
+    obj.x += obj.vx * dt;
+    obj.y += obj.vy * dt;
+    obj.rot += obj.vx * 0.7 * dt;
+
+    if(obj.y > maxY){
+      obj.y = maxY;
+      obj.vy = -Math.abs(obj.vy) * 0.5;
+    }
+
+    // apply fast GPU transform (translate3d)
+    obj.el.style.transform = `translate3d(${obj.x}px, ${-obj.y}px, 0) rotate(${obj.rot}deg)`;
+
+    // cleanup off-screen
+    if(obj.x < -300 || obj.x > areaW + 300 || obj.y < -500){
+      releaseElement(obj.el);
       active.splice(i,1);
     }
   }
+
   requestAnimationFrame(loop);
 }
 requestAnimationFrame(loop);
 
-/* ---------- spawn ---------- */
+/* ---------------- spawn fruit ---------------- */
 function spawnFruit(specName, startX){
   if(!running) return;
-  const name = specName || (Math.random()<0.92? FRUITS[Math.floor(Math.random()*FRUITS.length)]: BOMB);
-  const el = document.createElement('img');
-  el.className = 'fruit';
-  el.draggable = false;
+  if(active.length >= MAX_ACTIVE) return; // limit active count for smoothness
+
+  const name = specName || (Math.random() < 0.92 ? FRUITS[Math.floor(Math.random()*FRUITS.length)] : BOMB);
+  const el = getPooledElement();
   el.dataset.type = name;
 
-  const size = Math.max(84, Math.min(140, areaW*0.22));
+  // choose size based on area width (keeps rendering predictable)
+  const size = Math.max(78, Math.min(140, areaW * 0.22));
   el.style.width = size + 'px';
   el.style.height = 'auto';
 
-  const x = (typeof startX==='number')? startX : rand(40, Math.max(40, areaW - size - 40));
+  const x = (typeof startX === 'number') ? startX : rand(40, Math.max(40, areaW - size - 40));
   const startY = -140;
   el.style.left = x + 'px';
   el.style.bottom = startY + 'px';
 
-  // use cached image if available
+  // set src from cache (fast) or fallback (non-blocking)
   const cached = IMAGE_CACHE[name];
   if(cached){
     el.src = cached.src;
   } else {
-    // try load quickly (non-blocking)
-    tryLoadImage(name).then(img=>{
+    // try quick load but do not block spawn
+    loadFromCandidates(name).then(img=>{
       if(img) el.src = img.src;
     });
   }
 
   area.appendChild(el);
-  const vy = 18 + Math.random()*4;
-  const vx = rand(-2.4,2.4);
-  const rot = rand(-22,22);
+
+  const vy = VY_MIN + Math.random() * (VY_MAX - VY_MIN);
+  const vx = rand(-VX_MAX, VX_MAX);
+  const rot = rand(-20,20);
   active.push({ el, x, y: startY, vx, vy, rot, type: name });
 }
 
-/* ---------- slicing (simple) ---------- */
-let isDown=false, points=[];
-function addPoint(x,y){
-  points.push({x,y});
-  if(points.length>18) points.shift();
-  if(points.length>=2){
-    const p1 = points[points.length-2], p2 = points[points.length-1];
+/* ---------------- pointer / trail (throttled) ---------------- */
+let isDown = false;
+let pointerPoints = [];
+let lastPointer = 0;
+const trailCanvas = document.getElementById('trailCanvas');
+const tctx = trailCanvas && trailCanvas.getContext ? trailCanvas.getContext('2d') : null;
+let trailPoints = [];
+
+function addTrailPoint(x,y){
+  const rect = area.getBoundingClientRect();
+  const px = x - rect.left;
+  const py = y - rect.top;
+  trailPoints.push({ x:px, y:py, t:Date.now() });
+  if(trailPoints.length > TRAIL_MAX) trailPoints.shift();
+}
+
+function drawTrail(){
+  if(!tctx){ requestAnimationFrame(drawTrail); return; }
+  tctx.clearRect(0,0, trailCanvas.width, trailCanvas.height);
+  const now = Date.now();
+  for(let i=0;i<trailPoints.length-1;i++){
+    const a = trailPoints[i], b = trailPoints[i+1];
+    const age = now - a.t;
+    const alpha = Math.max(0, 1 - age / TRAIL_LIFE);
+    tctx.strokeStyle = `rgba(255,255,255,${0.14 * alpha})`;
+    tctx.lineWidth = 8 * alpha + 2;
+    tctx.lineCap = 'round';
+    tctx.beginPath();
+    tctx.moveTo(a.x, a.y);
+    tctx.lineTo(b.x, b.y);
+    tctx.stroke();
+  }
+  while(trailPoints.length && now - trailPoints[0].t > TRAIL_LIFE) trailPoints.shift();
+  requestAnimationFrame(drawTrail);
+}
+requestAnimationFrame(drawTrail);
+
+function handlePointer(clientX, clientY){
+  const now = Date.now();
+  if(now - lastPointer < POINTER_THROTTLE) return;
+  lastPointer = now;
+  pointerPoints.push({x:clientX,y:clientY});
+  if(pointerPoints.length > 18) pointerPoints.shift();
+  addTrailPoint(clientX, clientY);
+
+  if(pointerPoints.length >= 2){
+    const p1 = pointerPoints[pointerPoints.length - 2], p2 = pointerPoints[pointerPoints.length - 1];
     const snapshot = Array.from(active);
     for(const f of snapshot){
       const r = f.el.getBoundingClientRect();
@@ -148,113 +223,114 @@ function addPoint(x,y){
     }
   }
 }
-function onDown(e){ isDown=true; points=[]; addPoint(e.clientX,e.clientY); e.preventDefault && e.preventDefault(); }
-function onMove(e){ if(!isDown) return; addPoint(e.clientX,e.clientY); e.preventDefault && e.preventDefault(); }
-function onUp(e){ isDown=false; points=[]; }
+
+function onDown(e){ isDown = true; pointerPoints = []; handlePointer(e.clientX, e.clientY); e.preventDefault && e.preventDefault(); }
+function onMove(e){ if(!isDown) return; handlePointer(e.clientX, e.clientY); e.preventDefault && e.preventDefault(); }
+function onUp(){ isDown = false; pointerPoints = []; }
 window.addEventListener('pointerdown', onDown, {passive:false});
 window.addEventListener('pointermove', onMove, {passive:false});
 window.addEventListener('pointerup', onUp);
+window.addEventListener('pointercancel', onUp);
 
-function lineIntersectsRect(p1,p2,rect){
-  if((p1.x < rect.left && p2.x < rect.left) || (p1.x > rect.right && p2.x > rect.right) || (p1.y < rect.top && p2.y < rect.top) || (p1.y > rect.bottom && p2.y > rect.bottom)) return false;
-  return true;
-}
-
-/* ---------- split ---------- */
+/* ---------------- split logic ---------------- */
 function splitFruit(el){
   if(!el) return;
-  if(el.dataset.type === BOMB){
-    lives = Math.max(0, lives-1);
-    console.log("Bomb hit! Lives:", lives);
-    if(lives<=0) endGame();
+  const type = el.dataset.type;
+  if(type === BOMB){
+    lives = Math.max(0, lives - 1);
+    playBombSound();
+    if(lives <= 0) endGame();
   } else {
     score += 10; coins += 2;
-    console.log("Fruit sliced. Score:", score);
+    playSliceSound();
   }
   updateHUD();
-  if(el.parentNode) el.parentNode.removeChild(el);
-  for(let i=active.length-1;i>=0;i--) if(active[i].el===el) active.splice(i,1);
+  // remove from active and release element back to pool
+  for(let i=active.length-1;i>=0;i--) if(active[i].el === el){
+    const obj = active.splice(i,1)[0];
+    releaseElement(obj.el);
+    break;
+  }
 }
 
-/* ---------- controls ---------- */
+/* ---------------- HUD, controls ---------------- */
 function updateHUD(){
   const s = document.getElementById('score'); if(s) s.textContent = score;
   const l = document.getElementById('lives'); if(l) l.textContent = lives;
   const c = document.getElementById('coins'); if(c) c.textContent = coins;
   const lv = document.getElementById('level'); if(lv) lv.textContent = level;
-  const combo = document.getElementById('combo'); if(combo) combo.textContent = 'x1';
-  if(statusText) statusText.textContent = running? 'Running: YES' : 'Running: NO';
+  const cb = document.getElementById('combo'); if(cb) cb.textContent = 'x1';
+  if(statusText) statusText.textContent = running ? 'Running: YES' : 'Running: NO';
 }
 
 function startGame(){
   if(running) return;
-  console.log("startGame called");
   running = true;
-  const big = document.getElementById('bigStart'); if(big) big.style.display='none';
+  const big = document.getElementById('bigStart'); if(big) big.style.display = 'none';
   if(spawnTimer) clearInterval(spawnTimer);
-  spawnTimer = setInterval(()=> spawnFruit(), 900);
+  spawnTimer = setInterval(()=> spawnFruit(), SPAWN_INTERVAL);
   spawnFruit();
   updateHUD();
 }
 function pauseGame(){
   running = !running;
-  if(!running && spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; }
-  if(running && !spawnTimer){ spawnTimer = setInterval(()=> spawnFruit(), 900); }
+  if(!running && spawnTimer){ clearInterval(spawnTimer); spawnTimer = null; }
+  if(running && !spawnTimer){ spawnTimer = setInterval(()=> spawnFruit(), SPAWN_INTERVAL); }
   updateHUD();
 }
 function restartGame(){
-  for(const f of Array.from(active)) if(f.el.parentNode) f.el.parentNode.removeChild(f.el);
+  for(const obj of Array.from(active)) if(obj.el.parentNode) obj.el.parentNode.removeChild(obj.el);
   active.length = 0;
-  score=0; lives=3; coins=0; level=1; running=false;
-  const big = document.getElementById('bigStart'); if(big) big.style.display='block';
-  if(spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; }
+  score = 0; lives = 3; coins = 0; level = 1; running = false;
+  const big = document.getElementById('bigStart'); if(big) big.style.display = 'block';
+  if(spawnTimer){ clearInterval(spawnTimer); spawnTimer = null; }
   updateHUD();
 }
 function endGame(){
-  running=false;
-  if(spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; }
-  alert("Game Over! Score: "+score);
+  running = false;
+  if(spawnTimer){ clearInterval(spawnTimer); spawnTimer = null; }
+  alert('Game Over! Score: ' + score);
   restartGame();
 }
 
-/* ---------- audio (optional minimal) ---------- */
+/* ---------------- audio ---------------- */
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
-const audioCtx = AudioCtx? new AudioCtx(): null;
-function playTone(f){ if(!audioCtx) return; try{ const o = audioCtx.createOscillator(); const g = audioCtx.createGain(); o.type='sine'; o.frequency.value = f; g.gain.value=0.06; o.connect(g); g.connect(audioCtx.destination); o.start(); setTimeout(()=>{o.stop();},80); }catch(e){} }
-function playSlice(){ playTone(600); }
-function playBomb(){ playTone(120); }
+const audio = AudioCtx ? new AudioCtx() : null;
+function playTone(freq, type='sine', dur=0.06, vol=0.07){
+  if(!audio) return;
+  try{
+    const now = audio.currentTime;
+    const o = audio.createOscillator();
+    const g = audio.createGain();
+    o.type = type; o.frequency.setValueAtTime(freq, now);
+    g.gain.setValueAtTime(vol, now); g.gain.exponentialRampToValueAtTime(0.0001, now+dur);
+    o.connect(g); g.connect(audio.destination); o.start(now); o.stop(now + dur + 0.02);
+  } catch(e){}
+}
+function playSliceSound(){ playTone(rand(520,760),'sine',0.05,0.06); }
+function playBombSound(){ playTone(120,'sawtooth',0.12,0.14); setTimeout(()=>playTone(80,'sine',0.09,0.06),60); }
 
-/* ---------- utils ---------- */
+/* ---------------- utils ---------------- */
 function rand(a,b){ return Math.random()*(b-a)+a; }
+function lineIntersectsRect(p1,p2,rect){
+  if((p1.x < rect.left && p2.x < rect.left) || (p1.x > rect.right && p2.x > rect.right) || (p1.y < rect.top && p2.y < rect.top) || (p1.y > rect.bottom && p2.y > rect.bottom)) return false;
+  return true;
+}
 
-/* ---------- init: preload + wire UI + autostart ---------- */
+/* ---------------- initialization ---------------- */
 (async function init(){
-  console.log("game.js init — preloading images");
-  await preloadImagesForInit();
+  // preload images
+  await preloadAll();
+  // warm pool with a few elements to avoid allocation spikes
+  for(let i=0;i<6;i++) pool.push(makePoolItem());
   recalcArea();
   requestAnimationFrame(loop);
 
-  // wire UI if present
-  const sBtn = document.getElementById('startBtn'); if(sBtn) sBtn.addEventListener('click', startGame);
-  const pBtn = document.getElementById('pauseBtn'); if(pBtn) pBtn.addEventListener('click', pauseGame);
-  const rBtn = document.getElementById('restartBtn'); if(rBtn) rBtn.addEventListener('click', restartGame);
+  // wire UI
+  const startBtn = document.getElementById('startBtn'); if(startBtn) startBtn.addEventListener('click', startGame);
+  const pauseBtn = document.getElementById('pauseBtn'); if(pauseBtn) pauseBtn.addEventListener('click', pauseGame);
+  const restartBtn = document.getElementById('restartBtn'); if(restartBtn) restartBtn.addEventListener('click', restartGame);
   const big = document.getElementById('bigStart'); if(big) big.addEventListener('click', startGame);
 
   updateHUD();
-
-  // autostart — if you want manual start, comment this line
-  console.log("Auto-starting game in 300ms...");
-  setTimeout(()=> startGame(), 300);
 })();
-
-/* small helper used above (keeps file small) */
-async function preloadImagesForInit(){
-  const files = FRUITS.concat([BOMB]);
-  for(const f of files){
-    try{
-      const img = await tryLoadImage(f);
-      if(img) IMAGE_CACHE[f] = img;
-    }catch(e){}
-  }
-  console.log("Preload attempt done:", Object.keys(IMAGE_CACHE));
-                     }
