@@ -3,9 +3,9 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Auto-start Offline</title>
+<title>Fruit Cut — Full Update (Sprites, Juice, Sound, Shop)</title>
 <style>
-  :root{ --btn:#111; --btnHover:#333; --accent:#22c55e; }
+  :root{ --btn:#111; --btnHover:#333; --accent:#22c55e; --ui:#f1f5f9; }
   body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,Helvetica;margin:12px;background:#f4f7fb;color:#111}
   .container{max-width:980px;margin:0 auto}
   h1{margin:6px 0 10px}
@@ -14,26 +14,32 @@
   #gameWrapper{position:relative;height:520px;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,0.06);background-color:#e9e6e1;background-size:cover;background-position:center center;background-repeat:no-repeat;}
   #gameArea{position:absolute;inset:0;touch-action:none}
   canvas#bladeCanvas{position:absolute;inset:0;z-index:900;pointer-events:none}
+  canvas#particleCanvas{position:absolute;inset:0;z-index:850;pointer-events:none}
   .fruit{position:absolute;font-size:46px;line-height:1;user-select:none;pointer-events:none;z-index:600;will-change:transform,opacity}
-  .piece{position:absolute;width:64px;height:64px;user-select:none;pointer-events:none;z-index:700;will-change:transform,opacity;transform:translate(-50%,-50%);}
+  img.piece{position:absolute;width:64px;height:64px;user-select:none;pointer-events:none;z-index:700;will-change:transform,opacity;transform:translate(-50%,-50%);}
   .controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
   button{padding:8px 12px;border-radius:8px;border:0;background:var(--btn);color:#fff;cursor:pointer;font-weight:600;box-shadow:0 6px 12px rgba(2,6,23,0.06)}
-  .ghost{background:#fff;color:#111;border:1px solid #e6e6e6;box-shadow:none;padding:8px 12px;border-radius:8px}
+  button.ghost{background:#fff;color:#111;border:1px solid #e6e6e6;box-shadow:none;padding:8px 12px;border-radius:8px}
   .scorePop{position:absolute;right:12px;top:12px;background:#fff;padding:6px 10px;border-radius:8px;display:none;z-index:1100;box-shadow:0 10px 30px rgba(2,6,23,0.08)}
   .modal{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1200;transition:opacity .16s}
   .modal.hidden{opacity:0;pointer-events:none}
   .card{background:#fff;padding:14px;border-radius:10px;box-shadow:0 12px 36px rgba(2,6,23,0.12);min-width:300px;max-width:92%}
+  .shop-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
+  .shop-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;background:#f8fafc}
   .thumb{width:88px;height:56px;border-radius:6px;object-fit:cover;margin-right:10px}
+  .locked-badge{background:#111;color:#fff;padding:4px 6px;border-radius:6px;font-size:12px}
+  .cost-badge{background:#fff;border:1px solid #eee;padding:4px 6px;border-radius:6px;font-weight:700}
   .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:rgba(0,0,0,0.8);color:#fff;padding:8px 14px;border-radius:999px;z-index:1600;display:none}
   #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10050;background:rgba(0,0,0,0.85);color:#fff;padding:18px 28px;border-radius:12px;font-size:20px;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,0.25);pointer-events:auto}
   #startStatus{position:absolute;left:12px;top:12px;z-index:10060;background:rgba(255,255,255,0.95);padding:8px;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.06)}
-  @media (max-width:700px){ #gameWrapper{height:420px} .fruit{font-size:36px} .thumb{width:72px;height:48px} #bigStart{font-size:18px;padding:14px 22px} .piece{width:48px;height:48px} }
+  .hud-bottom{margin-top:10px;color:#666}
+  @media (max-width:700px){ #gameWrapper{height:420px} .fruit{font-size:36px} .thumb{width:72px;height:48px} #bigStart{font-size:18px;padding:14px 22px} img.piece{width:48px;height:48px} }
   *{-webkit-tap-highlight-color:transparent!important;user-select:none!important}
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🍉 Fruit Cut — Auto-start Offline</h1>
+  <h1>🍉 Fruit Cut — Full Update</h1>
 
   <div class="hud">
     <div class="stat">Score: <strong id="scoreEl">0</strong></div>
@@ -45,23 +51,16 @@
 
   <div id="gameWrapper">
     <div id="gameArea" aria-label="Game area — swipe to cut fruits"></div>
+    <canvas id="particleCanvas"></canvas>
     <canvas id="bladeCanvas"></canvas>
     <div class="scorePop" id="coinPop">+0</div>
 
     <div id="modal" class="modal hidden" aria-hidden="true">
       <div id="shopCard" class="card" style="display:none">
-        <h3 style="margin:0 0 8px">Shop</h3>
-        <div id="shopList"></div>
-        <div style="text-align:center;margin-top:10px">
+        <h3 style="margin:0 0 8px">Shop — Backgrounds, Blade & Sprites</h3>
+        <div id="shopList" class="shop-grid"></div>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:10px">
           <button id="shopClose" class="ghost">Close</button>
-        </div>
-      </div>
-      <div id="gameoverCard" class="card" style="display:none">
-        <h3 style="margin:0 0 8px">Game Over</h3>
-        <p id="goScore">Score: 0</p>
-        <p id="goBest">Best: 0</p>
-        <div style="display:flex;gap:8px;justify-content:center;margin-top:8px">
-          <button id="goRestart" class="ghost">Play Again</button>
         </div>
       </div>
     </div>
@@ -77,17 +76,24 @@
     <button id="shopBtn" class="ghost">Shop</button>
   </div>
 
-  <p style="color:#666;margin-top:12px">Tip: Slice fruits by swiping. Sprites used for halves — works offline.</p>
+  <p class="hud-bottom">Tip: Slice fruits by swiping. Use Shop to buy backgrounds, blade skins and fruit sprites.</p>
 </div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-/* Auto-start version: calls startGame automatically after load (fallbacks included). */
+/* Full featured single-file game:
+   - Sprite halves (replace FRUIT_SPRITES urls with real PNGs if you have)
+   - Juice particle effect on split
+   - WebAudio synthesized sounds (slice/combo/bomb)
+   - Shop with backgrounds, blade skins, fruit sprite packs; buy/use saved in localStorage
+   - Auto-start fallback
+*/
 (function(){
-  // DOM refs
+  // DOM
   const gameWrapper = document.getElementById('gameWrapper');
   const gameArea = document.getElementById('gameArea');
+  const particleCanvas = document.getElementById('particleCanvas');
   const bladeCanvas = document.getElementById('bladeCanvas');
   const scoreEl = document.getElementById('scoreEl');
   const livesEl = document.getElementById('livesEl');
@@ -95,13 +101,13 @@
   const levelEl = document.getElementById('levelEl');
   const coinPop = document.getElementById('coinPop');
   const modal = document.getElementById('modal');
+  const shopCard = document.getElementById('shopCard');
   const shopList = document.getElementById('shopList');
   const startBtn = document.getElementById('startBtn');
   const pauseBtn = document.getElementById('pauseBtn');
   const restartBtn = document.getElementById('restartBtn');
   const shopBtn = document.getElementById('shopBtn');
   const shopClose = document.getElementById('shopClose');
-  const goRestart = document.getElementById('goRestart');
   const bigStart = document.getElementById('bigStart');
   const stRun = document.getElementById('stRun');
   const toast = document.getElementById('toast');
@@ -110,49 +116,93 @@
   let score = 0, lives = 3, coins = 120, level = 1;
   let running = false, spawnTimerId = null, spawnInterval = 900;
   let fruits = new Set(), bestScore = 0;
-  let unlocked = [], currentBg = 'wood';
+  let unlocked = [], currentBg = 'wood', currentBlade = 'default', currentSpritePack = 'default';
 
+  // load save
   try {
-    const saved = JSON.parse(localStorage.getItem('fruitcut_state') || '{}');
-    if (saved) {
-      if (typeof saved.coins === 'number') coins = saved.coins;
-      if (typeof saved.bestScore === 'number') bestScore = saved.bestScore;
-      if (Array.isArray(saved.unlocked)) unlocked = saved.unlocked;
-      if (saved.currentBg) currentBg = saved.currentBg;
+    const s = JSON.parse(localStorage.getItem('fruitcut_state') || '{}');
+    if (s) {
+      if (typeof s.coins === 'number') coins = s.coins;
+      if (typeof s.bestScore === 'number') bestScore = s.bestScore;
+      if (Array.isArray(s.unlocked)) unlocked = s.unlocked;
+      if (s.currentBg) currentBg = s.currentBg;
+      if (s.currentBlade) currentBlade = s.currentBlade;
+      if (s.currentSpritePack) currentSpritePack = s.currentSpritePack;
     }
   } catch(e){ unlocked = []; }
   if (!Array.isArray(unlocked)) unlocked = [];
   if (!unlocked.includes('wood')) unlocked.unshift('wood');
 
-  // small helper for embedded halves (same as before)
-  function halfSVG(color, side = 'left', size = 128){
-    const clip = side === 'left'
-      ? `<clipPath id="c"><rect x="0" y="0" width="${size/2}" height="${size}"/></clipPath>`
-      : `<clipPath id="c"><rect x="${size/2}" y="0" width="${size/2}" height="${size}"/></clipPath>`;
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' viewBox='0 0 ${size} ${size}'>${clip}
-      <g clip-path="url(#c)"><circle cx="${size/2}" cy="${size/2}" r="${size*0.38}" fill="${color}" /><circle cx="${size/2}" cy="${size/2}" r="${size*0.38}" fill="none" stroke="#8b5e34" stroke-width="${size*0.03}" opacity="0.6"/></g>
-    </svg>`;
+  // helpers
+  const rand = (a,b)=>Math.random()*(b-a)+a;
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  function saveState(){ try{ localStorage.setItem('fruitcut_state', JSON.stringify({coins,bestScore,unlocked,currentBg,currentBlade,currentSpritePack})); }catch(e){} }
+
+  // embedded sprite placeholders (SVG data URIs). Replace with your PNG URLs if available.
+  function halfSVG(color, side='left', size=128){
+    const clip = side==='left' ? `<clipPath id="c"><rect x="0" y="0" width="${size/2}" height="${size}"/></clipPath>` : `<clipPath id="c"><rect x="${size/2}" y="0" width="${size/2}" height="${size}"/></clipPath>`;
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' viewBox='0 0 ${size} ${size}'>${clip}<g clip-path="url(#c)"><circle cx="${size/2}" cy="${size/2}" r="${size*0.38}" fill="${color}" /><circle cx="${size/2}" cy="${size/2}" r="${size*0.38}" fill="none" stroke="#8b5e34" stroke-width="${size*0.03}" opacity="0.6"/></g></svg>`;
     return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
   }
+
+  // default sprite pack mapping (can be replaced with PNG URLs)
   const FRUIT_SPRITES = {
-    apple:  { left: halfSVG('#ff5a5a','left'),  right: halfSVG('#ff5a5a','right') },
-    orange: { left: halfSVG('#ffb03b','left'),  right: halfSVG('#ffb03b','right') },
-    strawberry: { left: halfSVG('#ff5f87','left'), right: halfSVG('#ff5f87','right') },
-    watermelon: { left: halfSVG('#3ad08a','left'), right: halfSVG('#3ad08a','right') },
-    banana: { left: halfSVG('#ffe066','left'), right: halfSVG('#ffe066','right') },
-    combo: { left: halfSVG('#f59e0b','left'), right: halfSVG('#f59e0b','right') },
-    bomb: { left: halfSVG('#444444','left'), right: halfSVG('#444444','right') }
+    default: {
+      apple:  { left: halfSVG('#ff5a5a','left'),  right: halfSVG('#ff5a5a','right') },
+      orange: { left: halfSVG('#ffb03b','left'),  right: halfSVG('#ffb03b','right') },
+      strawberry: { left: halfSVG('#ff5f87','left'), right: halfSVG('#ff5f87','right') },
+      watermelon: { left: halfSVG('#3ad08a','left'), right: halfSVG('#3ad08a','right') },
+      banana: { left: halfSVG('#ffe066','left'), right: halfSVG('#ffe066','right') },
+      combo: { left: halfSVG('#f59e0b','left'), right: halfSVG('#f59e0b','right') },
+      bomb: { left: halfSVG('#444444','left'), right: halfSVG('#444444','right') }
+    }
+    // You can add more packs here, e.g. 'realistic': { apple: {left: 'data:...', right:'...'}, ... }
   };
 
-  // tiny backgrounds for offline
+  // backgrounds & shop items
   const BG_WOOD = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900"><rect width="100%" height="100%" fill="#e7d6bf"/></svg>')}`;
   const BG_LAKE = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900"><rect width="100%" height="100%" fill="#bfe7ff"/></svg>')}`;
   const BG_MOUNTAIN = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900"><rect width="100%" height="100%" fill="#eef5ff"/></svg>')}`;
-  const BACKGROUNDS = [{id:'wood',name:'Wood',thumb:BG_WOOD,url:BG_WOOD,cost:0},{id:'lake',name:'Lake',thumb:BG_LAKE,url:BG_LAKE,cost:100},{id:'mountain',name:'Mountain',thumb:BG_MOUNTAIN,url:BG_MOUNTAIN,cost:150}];
-  function applyBackground(id){ const bg = BACKGROUNDS.find(b=>b.id===id); if(!bg) return; gameWrapper.style.backgroundImage = `url("${bg.url}")`; currentBg=id; saveState(); }
-  function saveState(){ try{ localStorage.setItem('fruitcut_state', JSON.stringify({coins,bestScore,unlocked,currentBg})); }catch(e){} }
 
-  // fruit definitions
+  const BACKGROUNDS = [
+    {id:'wood', name:'Wood Texture', thumb:BG_WOOD, url:BG_WOOD, cost:0},
+    {id:'lake', name:'Lake View', thumb:BG_LAKE, url:BG_LAKE, cost:100},
+    {id:'mountain', name:'Mountain View', thumb:BG_MOUNTAIN, url:BG_MOUNTAIN, cost:150}
+  ];
+
+  // blade skins (colors)
+  const BLADES = [
+    {id:'default', name:'Green Trail', color:'#22c55e', cost:0},
+    {id:'pink', name:'Pink Trail', color:'#f43f5e', cost:80},
+    {id:'blue', name:'Blue Trail', color:'#3b82f6', cost:100}
+  ];
+
+  // sprite packs in shop (if you later add PNG packs, map them here)
+  const SPRITE_PACKS = [
+    {id:'default', name:'Default Sprites', cost:0, desc:'Built-in placeholder sprites'},
+    // Example how to add a real sprite pack (replace URLs with your PNG data URIs):
+    // {id:'real', name:'Real Fruit Pack', cost:200, desc:'Photorealistic halves', mapping: { apple:{left:'https://...',right:'https://...'}, ... } }
+  ];
+
+  // apply background
+  function applyBackground(id){
+    const bg = BACKGROUNDS.find(b=>b.id===id);
+    if (!bg) return;
+    gameWrapper.style.backgroundImage = `url("${bg.url}")`;
+    currentBg = id;
+    saveState();
+  }
+
+  // blade trail color getter
+  function bladeColorFor(id){
+    const s = BLADES.find(b=>b.id===id);
+    return s ? s.color : '#22c55e';
+  }
+
+  // HUD
+  function updateHUD(){ scoreEl.textContent = score; livesEl.textContent = lives; coinsEl.textContent = coins; levelEl.textContent = level; stRun.textContent = running ? 'YES' : 'NO'; }
+
+  // game spawn & physics
   const FRUITS = [
     {type:'apple', emoji:'🍎', score:10},
     {type:'orange', emoji:'🍊', score:12},
@@ -163,152 +213,211 @@
     {type:'bomb', emoji:'💣', score:0, bomb:true}
   ];
 
-  const rand = (a,b)=>Math.random()*(b-a)+a, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-  function updateHUD(){ scoreEl.textContent=score; livesEl.textContent=lives; coinsEl.textContent=coins; levelEl.textContent=level; stRun.textContent = running ? 'YES' : 'NO'; }
-
-  // spawn
   function spawnFruit(specOverride, xOverride){
     const spec = specOverride || FRUITS[Math.floor(Math.random()*FRUITS.length)];
-    const el = document.createElement('div'); el.className='fruit'; el.textContent = spec.emoji; el.dataset.type = spec.type; el.dataset.score = String(spec.score || 0);
+    const el = document.createElement('div');
+    el.className = 'fruit';
+    el.textContent = spec.emoji;
+    el.dataset.type = spec.type;
+    el.dataset.score = String(spec.score || 0);
+
     const ar = gameArea.getBoundingClientRect();
     const startX = (typeof xOverride === 'number') ? xOverride : rand(30, Math.max(80, ar.width - 80));
-    el.style.left = startX + 'px'; el.style.bottom = '-100px';
-    gameArea.appendChild(el); fruits.add(el);
-    el._phys = { x: startX, y:-100, vx: rand(-3,3), vy: rand(10,14), rot: rand(-25,25) };
+    el.style.left = startX + 'px';
+    el.style.bottom = '-100px';
+    gameArea.appendChild(el);
+    fruits.add(el);
+    el._phys = { x: startX, y: -100, vx: rand(-3,3), vy: rand(10,14), rot: rand(-25,25) };
+
     function frame(){
-      if(!fruits.has(el)) return;
-      const p = el._phys; p.vy -= 0.28; p.x += p.vx; p.y += p.vy; p.rot += p.vx*1.2;
-      el.style.left = p.x + 'px'; el.style.bottom = p.y + 'px'; el.style.transform = `rotate(${p.rot}deg)`;
+      if (!fruits.has(el)) return;
+      const p = el._phys;
+      p.vy -= 0.28;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.vx * 1.2;
+      el.style.left = p.x + 'px';
+      el.style.bottom = p.y + 'px';
+      el.style.transform = `rotate(${p.rot}deg)`;
       const areaRect = gameArea.getBoundingClientRect();
-      if (p.y < -240 || p.x < -240 || p.x > areaRect.width + 240){ removeFruit(el); return; }
+      if (p.y < -240 || p.x < -240 || p.x > areaRect.width + 240){
+        removeFruit(el);
+        return;
+      }
       el._raf = requestAnimationFrame(frame);
     }
     el._raf = requestAnimationFrame(frame);
-    updateHUD();
   }
-  function removeFruit(el){ if(!el) return; if(el._raf) cancelAnimationFrame(el._raf); try{el.remove();}catch(e){} fruits.delete(el); updateHUD(); }
 
-  // split into sprite halves
+  function removeFruit(el){
+    if (!el) return;
+    if (el._raf) cancelAnimationFrame(el._raf);
+    try{ el.remove(); }catch(e){}
+    fruits.delete(el);
+  }
+
+  // particles (juice)
+  const pctx = particleCanvas.getContext('2d');
+  let particles = [];
+  function resizeParticleCanvas(){ const r = gameArea.getBoundingClientRect(); particleCanvas.width = Math.max(1, Math.floor(r.width)); particleCanvas.height = Math.max(1, Math.floor(r.height)); }
+  window.addEventListener('resize', resizeParticleCanvas); setTimeout(resizeParticleCanvas, 60);
+
+  function spawnParticles(x, y, color, count=10){
+    for(let i=0;i<count;i++){
+      particles.push({
+        x, y,
+        vx: rand(-4,4),
+        vy: rand(-6,-1),
+        r: rand(2,6),
+        life: rand(40,80),
+        t: Date.now(),
+        color
+      });
+    }
+  }
+  function drawParticles(){
+    pctx.clearRect(0,0,particleCanvas.width, particleCanvas.height);
+    const now = Date.now();
+    particles = particles.filter(pt => (now - pt.t) < pt.life);
+    for(const pt of particles){
+      const age = (now - pt.t)/pt.life;
+      pt.x += pt.vx * (1 - 0.08*age);
+      pt.y += pt.vy * (1 + 0.8*age);
+      pt.vy += 0.14; // gravity for particles
+      const alpha = Math.max(0, 1 - age);
+      pctx.fillStyle = hexToRgba(pt.color, alpha);
+      pctx.beginPath();
+      pctx.arc(pt.x, pt.y, pt.r*(1-age*0.6), 0, Math.PI*2);
+      pctx.fill();
+    }
+    requestAnimationFrame(drawParticles);
+  }
+  drawParticles();
+
+  function hexToRgba(hex, a){
+    const c = hex.replace('#','');
+    const bigint = parseInt(c,16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    return `rgba(${r},${g},${b},${a})`;
+  }
+
+  // split to sprites (img pieces) + juice + sound
   function splitFruit(el){
     if(!el) return;
-    const rect = el.getBoundingClientRect(); const parentRect = gameArea.getBoundingClientRect();
-    const centerX = rect.left + rect.width/2, centerY = rect.top + rect.height/2;
-    const type = el.dataset.type || 'apple'; const pair = FRUIT_SPRITES[type] || FRUIT_SPRITES.apple;
+    const rect = el.getBoundingClientRect();
+    const parentRect = gameArea.getBoundingClientRect();
+    const cx = rect.left + rect.width/2;
+    const cy = rect.top + rect.height/2;
+    const type = el.dataset.type || 'apple';
+
+    // remove physics loop
     if (el._raf) cancelAnimationFrame(el._raf);
-    try{ el.remove(); }catch(e){} fruits.delete(el); updateHUD();
+    try{ el.remove(); }catch(e){}
+    fruits.delete(el);
 
-    const leftImg = document.createElement('img'), rightImg = document.createElement('img');
-    leftImg.className='piece'; rightImg.className='piece';
-    leftImg.src = pair.left; rightImg.src = pair.right;
-    const startLeft = (centerX - parentRect.left), startTop = (centerY - parentRect.top);
-    leftImg.style.left = startLeft + 'px'; leftImg.style.top = startTop + 'px';
-    rightImg.style.left = startLeft + 'px'; rightImg.style.top = startTop + 'px';
-    gameArea.appendChild(leftImg); gameArea.appendChild(rightImg);
+    // sprite mapping: use currentSpritePack
+    const pack = FRUIT_SPRITES[currentSpritePack] || FRUIT_SPRITES['default'];
+    const pair = pack[type] || pack['apple'];
 
+    // create left and right img elements
+    const left = document.createElement('img');
+    const right = document.createElement('img');
+    left.className = 'piece'; right.className = 'piece';
+    left.src = pair.left; right.src = pair.right;
+    const startX = cx - parentRect.left;
+    const startY = cy - parentRect.top;
+    left.style.left = startX + 'px'; left.style.top = startY + 'px';
+    right.style.left = startX + 'px'; right.style.top = startY + 'px';
+    gameArea.appendChild(left); gameArea.appendChild(right);
+
+    // set size proportional
     const size = Math.max(40, Math.min(96, rect.width*0.9));
-    leftImg.style.width = size + 'px'; leftImg.style.height = size + 'px';
-    rightImg.style.width = size + 'px'; rightImg.style.height = size + 'px';
+    left.style.width = size + 'px'; left.style.height = size + 'px';
+    right.style.width = size + 'px'; right.style.height = size + 'px';
 
-    const dir = (Math.random()>0.5?1:-1);
-    let lt = { x:startLeft, y:startTop, vx: (Math.random()*1.6+1.2)*-dir, vy: rand(6,10), rot: rand(-30,30), a:1 };
-    let rt = { x:startLeft, y:startTop, vx: (Math.random()*1.6+1.2)*dir,  vy: rand(6,10), rot: rand(-30,30), a:1 };
+    // particles color mapping per fruit
+    const colorMap = {
+      apple: '#ff5a5a', orange: '#ffb03b', strawberry: '#ff5f87', watermelon: '#3ad08a', banana:'#ffe066',
+      combo:'#f59e0b', bomb:'#444444'
+    };
+    spawnParticles(startX, startY, colorMap[type] || '#ff5a5a', 12);
+
+    // sound
+    playSliceSound(type);
+
+    // piece physics
+    const dir = Math.random()>0.5 ? 1 : -1;
+    let lt = { x:startX, y:startY, vx: (Math.random()*1.6+1.2)*-dir, vy: rand(6,10), rot: rand(-30,30), a:1 };
+    let rt = { x:startX, y:startY, vx: (Math.random()*1.6+1.2)*dir, vy: rand(6,10), rot: rand(-30,30), a:1 };
     const gravity = 0.35, decay = 0.02;
 
     function step(){
       lt.vy -= gravity; lt.x += lt.vx; lt.y += lt.vy; lt.rot += lt.vx*0.8; lt.a = Math.max(0, lt.a - decay);
-      leftImg.style.left = lt.x + 'px'; leftImg.style.top = lt.y + 'px'; leftImg.style.transform = `translate(-50%,-50%) rotate(${lt.rot}deg)`; leftImg.style.opacity = lt.a;
+      left.style.left = lt.x + 'px'; left.style.top = lt.y + 'px'; left.style.transform = `translate(-50%,-50%) rotate(${lt.rot}deg)`; left.style.opacity = lt.a;
       rt.vy -= gravity; rt.x += rt.vx; rt.y += rt.vy; rt.rot += rt.vx*0.8; rt.a = Math.max(0, rt.a - decay);
-      rightImg.style.left = rt.x + 'px'; rightImg.style.top = rt.y + 'px'; rightImg.style.transform = `translate(-50%,-50%) rotate(${rt.rot}deg)`; rightImg.style.opacity = rt.a;
-      if (lt.a <= 0.02 && rt.a <= 0.02){ try{ leftImg.remove(); }catch(e){} try{ rightImg.remove(); }catch(e){} return; }
+      right.style.left = rt.x + 'px'; right.style.top = rt.y + 'px'; right.style.transform = `translate(-50%,-50%) rotate(${rt.rot}deg)`; right.style.opacity = rt.a;
+      if (lt.a <= 0.02 && rt.a <= 0.02){ try{ left.remove(); }catch(e){} try{ right.remove(); }catch(e){} return; }
       requestAnimationFrame(step);
     }
     requestAnimationFrame(step);
   }
 
-  // slice logic
+  // slice behaviour & scoring
   function sliceFruit(el){
     if(!el || !fruits.has(el)) return;
     const type = el.dataset.type;
-    if (type === 'bomb'){ removeFruit(el); lives = clamp(lives-1,0,99); updateHUD(); showPop('-1 life'); if (lives<=0) setTimeout(gameOver,220); return; }
-    if (type === 'combo'){ score += 50; coins += 10; updateHUD(); showPop('COMBO! +50'); toastMsg('Combo!'); const x = el._phys ? el._phys.x : parseFloat(el.style.left) || (gameArea.getBoundingClientRect().width/2); for(let i=0;i<6;i++) setTimeout(()=> spawnFruit(null, clamp(x + rand(-60,60), 20, gameArea.getBoundingClientRect().width-20)), i*60); splitFruit(el); saveState(); return; }
-    const s = Number(el.dataset.score) || 10; score += s; coins += Math.floor(s/10); updateHUD(); showPop('+'+s); splitFruit(el); saveState();
+    if (type === 'bomb'){
+      removeFruit(el);
+      // bomb sound and particles
+      playSliceSound('bomb');
+      spawnParticles(window.innerWidth/2, 50, '#444444', 18);
+      lives = clamp(lives - 1, 0, 99);
+      updateHUD(); showPop('-1 life');
+      if (lives <= 0) setTimeout(gameOver, 220);
+      return;
+    }
+    if (type === 'combo'){
+      score += 50; coins += 10; updateHUD(); showPop('COMBO! +50'); toastMsg('Combo!');
+      // spawn a bunch of fruits around x
+      const x = el._phys ? el._phys.x : parseFloat(el.style.left) || (gameArea.getBoundingClientRect().width/2);
+      for(let i=0;i<6;i++) setTimeout(()=> spawnFruit(null, clamp(x + rand(-60,60), 20, gameArea.getBoundingClientRect().width-20)), i*60);
+      splitFruit(el); saveState();
+      return;
+    }
+    // normal fruit
+    const s = Number(el.dataset.score) || 10;
+    score += s;
+    coins += Math.floor(s/10);
+    updateHUD();
+    showPop('+' + s);
+    splitFruit(el);
+    saveState();
   }
-  function showPop(text){ coinPop.textContent = text; coinPop.style.display='block'; coinPop.style.opacity='1'; setTimeout(()=>{ coinPop.style.transition='transform .5s, opacity .5s'; coinPop.style.transform='translateY(-18px)'; coinPop.style.opacity='0'; },40); setTimeout(()=>{ coinPop.style.display='none'; coinPop.style.transform=''; coinPop.style.transition=''; },700); }
 
-  // controls
-  function startGame(){
-    if (running) return;
-    running = true; startBtn.disabled = true; pauseBtn.disabled = false; bigStart.style.display='none';
-    if (spawnTimerId) clearInterval(spawnTimerId);
-    spawnTimerId = setInterval(()=> spawnFruit(), spawnInterval);
-    spawnFruit(); updateHUD(); toastMsg('Game started');
+  function showPop(text){
+    coinPop.textContent = text;
+    coinPop.style.display = 'block';
+    coinPop.style.opacity = '1';
+    setTimeout(()=> { coinPop.style.transition = 'transform .5s, opacity .5s'; coinPop.style.transform = 'translateY(-18px)'; coinPop.style.opacity = '0'; }, 40);
+    setTimeout(()=> { coinPop.style.display = 'none'; coinPop.style.transform = ''; coinPop.style.transition = ''; }, 700);
   }
-  function pauseGame(){ if (!running) return; running=false; startBtn.disabled=false; pauseBtn.disabled=true; if (spawnTimerId){ clearInterval(spawnTimerId); spawnTimerId=null; } updateHUD(); toastMsg('Paused'); }
-  function restartGame(){ for(const f of Array.from(fruits)) removeFruit(f); score=0; lives=3; level=1; updateHUD(); pauseGame(); startGame(); saveState(); }
-  function gameOver(){ pauseGame(); bestScore = Math.max(bestScore, score); try{ document.getElementById('goScore').textContent='Score: '+score; document.getElementById('goBest').textContent='Best: '+bestScore; }catch(e){} showModal('gameover'); saveState(); }
 
-  // some modal/shop helpers (kept minimal)
-  function showModal(which){ modal.classList.remove('hidden'); modal.classList.add('visible'); modal.setAttribute('aria-hidden','false'); if (which==='shop'){ /* not critical */ } }
-  function hideModal(){ modal.classList.remove('visible'); modal.classList.add('hidden'); modal.setAttribute('aria-hidden','true'); }
-
-  // pointer & swipe detection
+  // swipe detection & blade trail drawing
   let isDown=false, points=[];
-  function addPoint(x,y){ points.push({x,y,ts:Date.now()}); if(points.length>16) points.shift(); addBladePoint(x,y); if(points.length>=2){ const p1=points[points.length-2], p2=points[points.length-1]; for(const f of Array.from(fruits)){ const r=f.getBoundingClientRect(); if(lineIntersectsRect(p1,p2,r)) sliceFruit(f); } } }
-  function onPointerDown(e){ if (modal.classList.contains('visible')) return; isDown=true; points=[]; addPoint(e.clientX,e.clientY); }
-  function onPointerMove(e){ if(!isDown) return; addPoint(e.clientX,e.clientY); }
-  function onPointerUp(){ isDown=false; points=[]; }
-  function lineIntersectsRect(p1,p2,rect){ if((p1.x<rect.left && p2.x<rect.left) || (p1.x>rect.right && p2.x>rect.right) || (p1.y<rect.top && p2.y<rect.top) || (p1.y>rect.bottom && p2.y>rect.bottom)) return false; return true; }
-  window.addEventListener('pointerdown', onPointerDown); window.addEventListener('pointermove', onPointerMove); window.addEventListener('pointerup', onPointerUp); window.addEventListener('pointercancel', onPointerUp); window.addEventListener('pointerleave', onPointerUp);
-  gameArea.addEventListener('touchmove', e=>{ if (!modal.classList.contains('visible')) e.preventDefault(); }, { passive:false });
-
-  // blade visuals
-  const bctx = bladeCanvas.getContext('2d'); let bladePoints=[], MAX=24;
-  function addBladePoint(x,y){ const r = gameArea.getBoundingClientRect(); bladePoints.push({x:x-r.left,y:y-r.top,t:Date.now()}); if(bladePoints.length>MAX) bladePoints.shift(); }
-  function drawBlade(){ bctx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height); if(bladePoints.length>1){ bctx.lineJoin='round'; bctx.lineCap='round'; bctx.beginPath(); bctx.moveTo(bladePoints[0].x,bladePoints[0].y); for(let i=1;i<bladePoints.length;i++) bctx.lineTo(bladePoints[i].x,bladePoints[i].y); bctx.strokeStyle='rgba(34,197,94,0.9)'; bctx.lineWidth=12; bctx.stroke(); } bladePoints = bladePoints.filter(p=>Date.now()-p.t<350); requestAnimationFrame(drawBlade); }
-  drawBlade();
-  window.addEventListener('pointermove', e=>{ if(e.buttons) addBladePoint(e.clientX,e.clientY); });
-
-  // resize canvas
-  function resizeCanvas(){ const r=gameArea.getBoundingClientRect(); bladeCanvas.width = Math.max(1, Math.floor(r.width)); bladeCanvas.height = Math.max(1, Math.floor(r.height)); }
-  window.addEventListener('resize', resizeCanvas); setTimeout(resizeCanvas,60);
-
-  // wiring
-  function safeAdd(el, ev, fn){ if(!el) return; el.removeEventListener(ev, fn); el.addEventListener(ev, fn); }
-  safeAdd(startBtn,'click', ()=> startGame()); safeAdd(pauseBtn,'click', ()=> pauseGame()); safeAdd(restartBtn,'click', ()=> restartGame()); safeAdd(shopBtn,'click', ()=> showModal('shop')); safeAdd(shopClose,'click', ()=> hideModal()); safeAdd(goRestart,'click', ()=> { hideModal(); restartGame(); });
-
-  // START listeners and auto-start fallback
-  function startHandler(e){ e && e.preventDefault && e.preventDefault(); startGame(); }
-  bigStart.addEventListener('click', startHandler);
-  bigStart.addEventListener('pointerdown', startHandler);
-  bigStart.addEventListener('touchstart', startHandler, {passive:false});
-  // fallback: start automatically after short delay
-  window.addEventListener('load', ()=>{
-    // try to auto-start after small delay
-    setTimeout(()=> {
-      try { startGame(); } catch(e) {}
-    }, 350);
-  });
-
-  // visibility handling (pause/resume)
-  document.addEventListener('visibilitychange', ()=>{
-    if (document.hidden){ if (running){ pauseGame(); } }
-    else { /* try resume */ if (!running) startGame(); }
-  });
-
-  // difficulty progression
-  setInterval(()=>{ if(!running) return; level+=1; levelEl.textContent=level; spawnInterval = Math.max(300, spawnInterval-60); if (spawnTimerId){ clearInterval(spawnTimerId); spawnTimerId = setInterval(()=>spawnFruit(), spawnInterval); } }, 30000);
-
-  // initial render
-  updateHUD(); applyBackground(currentBg);
-
-  // small safety check to suggest opening in full window
-  setTimeout(()=>{ const r = gameArea.getBoundingClientRect(); if (r.width < 40 || r.height < 40) { toast.style.display='block'; toast.textContent='Open in full window or open file directly in browser'; setTimeout(()=>toast.style.display='none',1600); } },600);
-
-  // helpers
-  function toastMsg(t,ms=900){ toast.textContent=t; toast.style.display='block'; setTimeout(()=>toast.style.display='none', ms); }
-  window.fruitcut = { reset: ()=> { localStorage.removeItem('fruitcut_state'); location.reload(); } };
-
-})();
-</script>
-</body>
-</html>
+  const bctx = bladeCanvas.getContext('2d');
+  let bladePoints = [], MAX_BLADE = 24;
+  function addBladePoint(x,y){
+    const r = gameArea.getBoundingClientRect();
+    bladePoints.push({x:x-r.left, y:y-r.top, t:Date.now()});
+    if (bladePoints.length > MAX_BLADE) bladePoints.shift();
+  }
+  function drawBlade(){
+    // resize canvas as needed
+    const r = gameArea.getBoundingClientRect();
+    if (bladeCanvas.width !== Math.floor(r.width) || bladeCanvas.height !== Math.floor(r.height)){
+      bladeCanvas.width = Math.max(1, Math.floor(r.width));
+      bladeCanvas.height = Math.max(1, Math.floor(r.height));
+    }
+    bctx.clearRec
