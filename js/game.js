@@ -1,10 +1,19 @@
-/* game.js - smooth transform-based physics, offline-ready
-   Ensure images are placed in ./images/ with matching names
-*/
+/* game.js - tuned for your Hindi-named images */
 
 const IMG_PATH = "images/";
-const FRUITS = ["apple.png","orange.png","banana.png","strawberry.png","watermelon.png","mango.png","papaya.png","pineapple.png","pomegranate.png"];
-const BOMB = "bomb.png";
+// filenames shown in your repo screenshots (if different, edit these)
+const FRUITS = [
+  "सेब.png",
+  "नारंगी.png",
+  "केला.png",
+  "स्ट्रॉबेरी.png",
+  "तरबूज़.png",
+  "आम.png",
+  "पपीता.png",
+  "अनानास.png",
+  "अनार.png"
+];
+const BOMB = "बम.png";
 
 /* state */
 let score=0, lives=3, coins=0, level=1;
@@ -43,7 +52,7 @@ function loop(t){
 }
 requestAnimationFrame(loop);
 
-/* spawn fruit */
+/* spawn */
 function spawnFruit(spec, startX){
   if(!running) return;
   const name = spec || (Math.random()<0.9 ? FRUITS[Math.floor(Math.random()*FRUITS.length)] : BOMB);
@@ -51,14 +60,17 @@ function spawnFruit(spec, startX){
   img.className = "fruit";
   img.src = IMG_PATH + name;
   img.draggable = false;
+
   const ar = area.getBoundingClientRect();
   const w = Math.max(48, Math.min(96, ar.width * 0.13));
   img.style.width = w + "px";
+
   const x = (typeof startX === 'number') ? startX : rand(16, Math.max(40, ar.width - w - 16));
   const startY = -120;
   img.style.left = x + "px";
   img.style.bottom = (startY - 20) + "px";
   img.style.transform = `translate(${x}px, ${-startY}px)`;
+
   img.dataset.type = name;
   area.appendChild(img);
 
@@ -68,14 +80,14 @@ function spawnFruit(spec, startX){
   active.push({el:img, x:x, y:startY, vx:vx, vy:vy, rot:rot, type:name, w:w, h:w});
 }
 
-/* remove reference */
+/* remove helper */
 function removeActiveEl(el){
   for(let i=active.length-1;i>=0;i--){
     if(active[i].el === el){ active.splice(i,1); return; }
   }
 }
 
-/* split fruit into halves */
+/* split into halves */
 function splitFruit(el){
   if(!el) return;
   const rect = el.getBoundingClientRect();
@@ -137,11 +149,11 @@ window.addEventListener('pointercancel', onUp);
 
 /* controls */
 function startGame(){ if(running) return; running=true; document.getElementById("bigStart").style.display='none'; updateHUD(); if(spawnTimer) clearInterval(spawnTimer); spawnTimer = setInterval(()=>spawnFruit(), Math.max(380, spawnInterval - level*30)); spawnFruit(); }
-function pauseGame(){ running = !running; if(!running && spawnTimer){ clearInterval(spawnTimer); spawnTimer = null; } if(running && !spawnTimer){ spawnTimer = setInterval(()=>spawnFruit(), Math.max(380, spawnInterval - level*30)); } updateHUD(); }
-function restartGame(){ for(const f of Array.from(active)){ if(f.el.parentNode) f.el.parentNode.removeChild(f.el); } active.length = 0; score=0; lives=3; coins=0; level=1; running=false; document.getElementById("bigStart").style.display='block'; if(spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } updateHUD(); }
+function pauseGame(){ running = !running; if(!running && spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } if(running && !spawnTimer){ spawnTimer = setInterval(()=>spawnFruit(), Math.max(380, spawnInterval - level*30)); } updateHUD(); }
+function restartGame(){ for(const f of Array.from(active)){ if(f.el.parentNode) f.el.parentNode.removeChild(f.el); } active.length=0; score=0; lives=3; coins=0; level=1; running=false; document.getElementById("bigStart").style.display='block'; if(spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } updateHUD(); }
 function endGame(){ running=false; if(spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } alert("Game Over! Score: "+score); restartGame(); }
 
-/* small synth */
+/* audio synth */
 const AudioCtx = window.AudioContext || window.webkitAudioContext;
 const audio = AudioCtx ? new AudioCtx() : null;
 function playTone(freq, type='sine', dur=0.08, vol=0.08){ if(!audio) return; try{ const now = audio.currentTime; const o = audio.createOscillator(); const g = audio.createGain(); o.type=type; o.frequency.setValueAtTime(freq, now); g.gain.setValueAtTime(vol, now); g.gain.exponentialRampToValueAtTime(0.0001, now+dur); o.connect(g); g.connect(audio.destination); o.start(now); o.stop(now+dur+0.02);}catch(e){} }
@@ -154,7 +166,7 @@ document.getElementById("pauseBtn").addEventListener('click', pauseGame);
 document.getElementById("restartBtn").addEventListener('click', restartGame);
 document.getElementById("bigStart").addEventListener('click', startGame);
 
-/* debug heartbeat (use Eruda console) */
-setInterval(()=>{ console.debug('DEBUG', {running, spawnTimer:!!spawnTimer, active: active.length, score, lives}); }, 1200);
+/* debug heartbeat (console/eruda) */
+setInterval(()=>{ console.debug('STATUS', {running, spawn:!!spawnTimer, active: active.length, score, lives}); }, 1200);
 
 updateHUD();
