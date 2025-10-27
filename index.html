@@ -1,51 +1,314 @@
-<!DOCTYPE html>
-<html lang="hi">
+<!doctype html>
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>कार रेसिंग गेम</title>
-
-  <!-- अब css फ़ोल्डर के अंदर की फाइल को लिंक किया गया है -->
-  <link rel="stylesheet" href="css/style.css" />
-
-  <!-- Eruda debug console (optional, हटा सकते हो बाद में) -->
-  <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
-  <script>eruda.init();</script>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Fruit Cut — Auto-start Offline</title>
+<style>
+  :root{ --btn:#111; --btnHover:#333; --accent:#22c55e; }
+  body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,Helvetica;margin:12px;background:#f4f7fb;color:#111}
+  .container{max-width:980px;margin:0 auto}
+  h1{margin:6px 0 10px}
+  .hud{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
+  .stat{background:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.04);display:flex;align-items:center}
+  #gameWrapper{position:relative;height:520px;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,0.06);background-color:#e9e6e1;background-size:cover;background-position:center center;background-repeat:no-repeat;}
+  #gameArea{position:absolute;inset:0;touch-action:none}
+  canvas#bladeCanvas{position:absolute;inset:0;z-index:900;pointer-events:none}
+  .fruit{position:absolute;font-size:46px;line-height:1;user-select:none;pointer-events:none;z-index:600;will-change:transform,opacity}
+  .piece{position:absolute;width:64px;height:64px;user-select:none;pointer-events:none;z-index:700;will-change:transform,opacity;transform:translate(-50%,-50%);}
+  .controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+  button{padding:8px 12px;border-radius:8px;border:0;background:var(--btn);color:#fff;cursor:pointer;font-weight:600;box-shadow:0 6px 12px rgba(2,6,23,0.06)}
+  .ghost{background:#fff;color:#111;border:1px solid #e6e6e6;box-shadow:none;padding:8px 12px;border-radius:8px}
+  .scorePop{position:absolute;right:12px;top:12px;background:#fff;padding:6px 10px;border-radius:8px;display:none;z-index:1100;box-shadow:0 10px 30px rgba(2,6,23,0.08)}
+  .modal{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1200;transition:opacity .16s}
+  .modal.hidden{opacity:0;pointer-events:none}
+  .card{background:#fff;padding:14px;border-radius:10px;box-shadow:0 12px 36px rgba(2,6,23,0.12);min-width:300px;max-width:92%}
+  .thumb{width:88px;height:56px;border-radius:6px;object-fit:cover;margin-right:10px}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:rgba(0,0,0,0.8);color:#fff;padding:8px 14px;border-radius:999px;z-index:1600;display:none}
+  #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10050;background:rgba(0,0,0,0.85);color:#fff;padding:18px 28px;border-radius:12px;font-size:20px;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,0.25);pointer-events:auto}
+  #startStatus{position:absolute;left:12px;top:12px;z-index:10060;background:rgba(255,255,255,0.95);padding:8px;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.06)}
+  @media (max-width:700px){ #gameWrapper{height:420px} .fruit{font-size:36px} .thumb{width:72px;height:48px} #bigStart{font-size:18px;padding:14px 22px} .piece{width:48px;height:48px} }
+  *{-webkit-tap-highlight-color:transparent!important;user-select:none!important}
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>🚗 कार रेसिंग गेम 🚦</h1>
+<div class="container">
+  <h1>🍉 Fruit Cut — Auto-start Offline</h1>
 
-    <div id="hud">
-      <div id="score">स्कोर: 0</div>
-      <div id="speed">स्पीड: 1</div>
-    </div>
+  <div class="hud">
+    <div class="stat">Score: <strong id="scoreEl">0</strong></div>
+    <div class="stat">Lives: <strong id="livesEl">3</strong></div>
+    <div class="stat">Coins: <strong id="coinsEl">120</strong></div>
+    <div style="flex:1"></div>
+    <div class="stat">Level: <strong id="levelEl">1</strong></div>
+  </div>
 
-    <canvas id="gameCanvas" width="360" height="640"></canvas>
+  <div id="gameWrapper">
+    <div id="gameArea" aria-label="Game area — swipe to cut fruits"></div>
+    <canvas id="bladeCanvas"></canvas>
+    <div class="scorePop" id="coinPop">+0</div>
 
-    <div id="controls">
-      <button id="leftBtn" class="touch-btn">◀</button>
-      <button id="rightBtn" class="touch-btn">▶</button>
-    </div>
-
-    <div id="overlay" class="hidden">
-      <div id="overlayBox">
-        <h2 id="overlayTitle">गेम ओवर</h2>
-        <p id="finalScore">तुम्हारा स्कोर: 0</p>
-        <button id="restartBtn">फिर से खेलो</button>
+    <div id="modal" class="modal hidden" aria-hidden="true">
+      <div id="shopCard" class="card" style="display:none">
+        <h3 style="margin:0 0 8px">Shop</h3>
+        <div id="shopList"></div>
+        <div style="text-align:center;margin-top:10px">
+          <button id="shopClose" class="ghost">Close</button>
+        </div>
+      </div>
+      <div id="gameoverCard" class="card" style="display:none">
+        <h3 style="margin:0 0 8px">Game Over</h3>
+        <p id="goScore">Score: 0</p>
+        <p id="goBest">Best: 0</p>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+          <button id="goRestart" class="ghost">Play Again</button>
+        </div>
       </div>
     </div>
 
-    <p class="note">कीबोर्ड: ← / → — मोबाइल: बटन दबाओ</p>
-
-    <!-- छोटा debug टेक्स्ट (Eruda के साथ काम करता है) -->
-    <div id="diag"
-      style="position:fixed;left:8px;bottom:8px;background:#000;color:#fff;padding:6px;z-index:9999;border-radius:6px;font-size:12px;">
-      DEBUG: waiting...
-    </div>
+    <div id="startStatus">Running: <span id="stRun">NO</span></div>
+    <div id="bigStart">START</div>
   </div>
 
-  <!-- अब js फ़ोल्डर के अंदर की फाइल को लिंक किया गया है -->
-  <script src="js/script.js"></script>
+  <div class="controls" style="margin-top:12px">
+    <button id="startBtn" class="ghost">Start</button>
+    <button id="pauseBtn" class="ghost" disabled>Pause</button>
+    <button id="restartBtn" class="ghost">Restart</button>
+    <button id="shopBtn" class="ghost">Shop</button>
+  </div>
+
+  <p style="color:#666;margin-top:12px">Tip: Slice fruits by swiping. Sprites used for halves — works offline.</p>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* Auto-start version: calls startGame automatically after load (fallbacks included). */
+(function(){
+  // DOM refs
+  const gameWrapper = document.getElementById('gameWrapper');
+  const gameArea = document.getElementById('gameArea');
+  const bladeCanvas = document.getElementById('bladeCanvas');
+  const scoreEl = document.getElementById('scoreEl');
+  const livesEl = document.getElementById('livesEl');
+  const coinsEl = document.getElementById('coinsEl');
+  const levelEl = document.getElementById('levelEl');
+  const coinPop = document.getElementById('coinPop');
+  const modal = document.getElementById('modal');
+  const shopList = document.getElementById('shopList');
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const shopBtn = document.getElementById('shopBtn');
+  const shopClose = document.getElementById('shopClose');
+  const goRestart = document.getElementById('goRestart');
+  const bigStart = document.getElementById('bigStart');
+  const stRun = document.getElementById('stRun');
+  const toast = document.getElementById('toast');
+
+  // state
+  let score = 0, lives = 3, coins = 120, level = 1;
+  let running = false, spawnTimerId = null, spawnInterval = 900;
+  let fruits = new Set(), bestScore = 0;
+  let unlocked = [], currentBg = 'wood';
+
+  try {
+    const saved = JSON.parse(localStorage.getItem('fruitcut_state') || '{}');
+    if (saved) {
+      if (typeof saved.coins === 'number') coins = saved.coins;
+      if (typeof saved.bestScore === 'number') bestScore = saved.bestScore;
+      if (Array.isArray(saved.unlocked)) unlocked = saved.unlocked;
+      if (saved.currentBg) currentBg = saved.currentBg;
+    }
+  } catch(e){ unlocked = []; }
+  if (!Array.isArray(unlocked)) unlocked = [];
+  if (!unlocked.includes('wood')) unlocked.unshift('wood');
+
+  // small helper for embedded halves (same as before)
+  function halfSVG(color, side = 'left', size = 128){
+    const clip = side === 'left'
+      ? `<clipPath id="c"><rect x="0" y="0" width="${size/2}" height="${size}"/></clipPath>`
+      : `<clipPath id="c"><rect x="${size/2}" y="0" width="${size/2}" height="${size}"/></clipPath>`;
+    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' viewBox='0 0 ${size} ${size}'>${clip}
+      <g clip-path="url(#c)"><circle cx="${size/2}" cy="${size/2}" r="${size*0.38}" fill="${color}" /><circle cx="${size/2}" cy="${size/2}" r="${size*0.38}" fill="none" stroke="#8b5e34" stroke-width="${size*0.03}" opacity="0.6"/></g>
+    </svg>`;
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+  }
+  const FRUIT_SPRITES = {
+    apple:  { left: halfSVG('#ff5a5a','left'),  right: halfSVG('#ff5a5a','right') },
+    orange: { left: halfSVG('#ffb03b','left'),  right: halfSVG('#ffb03b','right') },
+    strawberry: { left: halfSVG('#ff5f87','left'), right: halfSVG('#ff5f87','right') },
+    watermelon: { left: halfSVG('#3ad08a','left'), right: halfSVG('#3ad08a','right') },
+    banana: { left: halfSVG('#ffe066','left'), right: halfSVG('#ffe066','right') },
+    combo: { left: halfSVG('#f59e0b','left'), right: halfSVG('#f59e0b','right') },
+    bomb: { left: halfSVG('#444444','left'), right: halfSVG('#444444','right') }
+  };
+
+  // tiny backgrounds for offline
+  const BG_WOOD = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900"><rect width="100%" height="100%" fill="#e7d6bf"/></svg>')}`;
+  const BG_LAKE = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900"><rect width="100%" height="100%" fill="#bfe7ff"/></svg>')}`;
+  const BG_MOUNTAIN = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900"><rect width="100%" height="100%" fill="#eef5ff"/></svg>')}`;
+  const BACKGROUNDS = [{id:'wood',name:'Wood',thumb:BG_WOOD,url:BG_WOOD,cost:0},{id:'lake',name:'Lake',thumb:BG_LAKE,url:BG_LAKE,cost:100},{id:'mountain',name:'Mountain',thumb:BG_MOUNTAIN,url:BG_MOUNTAIN,cost:150}];
+  function applyBackground(id){ const bg = BACKGROUNDS.find(b=>b.id===id); if(!bg) return; gameWrapper.style.backgroundImage = `url("${bg.url}")`; currentBg=id; saveState(); }
+  function saveState(){ try{ localStorage.setItem('fruitcut_state', JSON.stringify({coins,bestScore,unlocked,currentBg})); }catch(e){} }
+
+  // fruit definitions
+  const FRUITS = [
+    {type:'apple', emoji:'🍎', score:10},
+    {type:'orange', emoji:'🍊', score:12},
+    {type:'strawberry', emoji:'🍓', score:14},
+    {type:'watermelon', emoji:'🍉', score:15},
+    {type:'banana', emoji:'🍌', score:12},
+    {type:'combo', emoji:'🍹', score:25, combo:true},
+    {type:'bomb', emoji:'💣', score:0, bomb:true}
+  ];
+
+  const rand = (a,b)=>Math.random()*(b-a)+a, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  function updateHUD(){ scoreEl.textContent=score; livesEl.textContent=lives; coinsEl.textContent=coins; levelEl.textContent=level; stRun.textContent = running ? 'YES' : 'NO'; }
+
+  // spawn
+  function spawnFruit(specOverride, xOverride){
+    const spec = specOverride || FRUITS[Math.floor(Math.random()*FRUITS.length)];
+    const el = document.createElement('div'); el.className='fruit'; el.textContent = spec.emoji; el.dataset.type = spec.type; el.dataset.score = String(spec.score || 0);
+    const ar = gameArea.getBoundingClientRect();
+    const startX = (typeof xOverride === 'number') ? xOverride : rand(30, Math.max(80, ar.width - 80));
+    el.style.left = startX + 'px'; el.style.bottom = '-100px';
+    gameArea.appendChild(el); fruits.add(el);
+    el._phys = { x: startX, y:-100, vx: rand(-3,3), vy: rand(10,14), rot: rand(-25,25) };
+    function frame(){
+      if(!fruits.has(el)) return;
+      const p = el._phys; p.vy -= 0.28; p.x += p.vx; p.y += p.vy; p.rot += p.vx*1.2;
+      el.style.left = p.x + 'px'; el.style.bottom = p.y + 'px'; el.style.transform = `rotate(${p.rot}deg)`;
+      const areaRect = gameArea.getBoundingClientRect();
+      if (p.y < -240 || p.x < -240 || p.x > areaRect.width + 240){ removeFruit(el); return; }
+      el._raf = requestAnimationFrame(frame);
+    }
+    el._raf = requestAnimationFrame(frame);
+    updateHUD();
+  }
+  function removeFruit(el){ if(!el) return; if(el._raf) cancelAnimationFrame(el._raf); try{el.remove();}catch(e){} fruits.delete(el); updateHUD(); }
+
+  // split into sprite halves
+  function splitFruit(el){
+    if(!el) return;
+    const rect = el.getBoundingClientRect(); const parentRect = gameArea.getBoundingClientRect();
+    const centerX = rect.left + rect.width/2, centerY = rect.top + rect.height/2;
+    const type = el.dataset.type || 'apple'; const pair = FRUIT_SPRITES[type] || FRUIT_SPRITES.apple;
+    if (el._raf) cancelAnimationFrame(el._raf);
+    try{ el.remove(); }catch(e){} fruits.delete(el); updateHUD();
+
+    const leftImg = document.createElement('img'), rightImg = document.createElement('img');
+    leftImg.className='piece'; rightImg.className='piece';
+    leftImg.src = pair.left; rightImg.src = pair.right;
+    const startLeft = (centerX - parentRect.left), startTop = (centerY - parentRect.top);
+    leftImg.style.left = startLeft + 'px'; leftImg.style.top = startTop + 'px';
+    rightImg.style.left = startLeft + 'px'; rightImg.style.top = startTop + 'px';
+    gameArea.appendChild(leftImg); gameArea.appendChild(rightImg);
+
+    const size = Math.max(40, Math.min(96, rect.width*0.9));
+    leftImg.style.width = size + 'px'; leftImg.style.height = size + 'px';
+    rightImg.style.width = size + 'px'; rightImg.style.height = size + 'px';
+
+    const dir = (Math.random()>0.5?1:-1);
+    let lt = { x:startLeft, y:startTop, vx: (Math.random()*1.6+1.2)*-dir, vy: rand(6,10), rot: rand(-30,30), a:1 };
+    let rt = { x:startLeft, y:startTop, vx: (Math.random()*1.6+1.2)*dir,  vy: rand(6,10), rot: rand(-30,30), a:1 };
+    const gravity = 0.35, decay = 0.02;
+
+    function step(){
+      lt.vy -= gravity; lt.x += lt.vx; lt.y += lt.vy; lt.rot += lt.vx*0.8; lt.a = Math.max(0, lt.a - decay);
+      leftImg.style.left = lt.x + 'px'; leftImg.style.top = lt.y + 'px'; leftImg.style.transform = `translate(-50%,-50%) rotate(${lt.rot}deg)`; leftImg.style.opacity = lt.a;
+      rt.vy -= gravity; rt.x += rt.vx; rt.y += rt.vy; rt.rot += rt.vx*0.8; rt.a = Math.max(0, rt.a - decay);
+      rightImg.style.left = rt.x + 'px'; rightImg.style.top = rt.y + 'px'; rightImg.style.transform = `translate(-50%,-50%) rotate(${rt.rot}deg)`; rightImg.style.opacity = rt.a;
+      if (lt.a <= 0.02 && rt.a <= 0.02){ try{ leftImg.remove(); }catch(e){} try{ rightImg.remove(); }catch(e){} return; }
+      requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  // slice logic
+  function sliceFruit(el){
+    if(!el || !fruits.has(el)) return;
+    const type = el.dataset.type;
+    if (type === 'bomb'){ removeFruit(el); lives = clamp(lives-1,0,99); updateHUD(); showPop('-1 life'); if (lives<=0) setTimeout(gameOver,220); return; }
+    if (type === 'combo'){ score += 50; coins += 10; updateHUD(); showPop('COMBO! +50'); toastMsg('Combo!'); const x = el._phys ? el._phys.x : parseFloat(el.style.left) || (gameArea.getBoundingClientRect().width/2); for(let i=0;i<6;i++) setTimeout(()=> spawnFruit(null, clamp(x + rand(-60,60), 20, gameArea.getBoundingClientRect().width-20)), i*60); splitFruit(el); saveState(); return; }
+    const s = Number(el.dataset.score) || 10; score += s; coins += Math.floor(s/10); updateHUD(); showPop('+'+s); splitFruit(el); saveState();
+  }
+  function showPop(text){ coinPop.textContent = text; coinPop.style.display='block'; coinPop.style.opacity='1'; setTimeout(()=>{ coinPop.style.transition='transform .5s, opacity .5s'; coinPop.style.transform='translateY(-18px)'; coinPop.style.opacity='0'; },40); setTimeout(()=>{ coinPop.style.display='none'; coinPop.style.transform=''; coinPop.style.transition=''; },700); }
+
+  // controls
+  function startGame(){
+    if (running) return;
+    running = true; startBtn.disabled = true; pauseBtn.disabled = false; bigStart.style.display='none';
+    if (spawnTimerId) clearInterval(spawnTimerId);
+    spawnTimerId = setInterval(()=> spawnFruit(), spawnInterval);
+    spawnFruit(); updateHUD(); toastMsg('Game started');
+  }
+  function pauseGame(){ if (!running) return; running=false; startBtn.disabled=false; pauseBtn.disabled=true; if (spawnTimerId){ clearInterval(spawnTimerId); spawnTimerId=null; } updateHUD(); toastMsg('Paused'); }
+  function restartGame(){ for(const f of Array.from(fruits)) removeFruit(f); score=0; lives=3; level=1; updateHUD(); pauseGame(); startGame(); saveState(); }
+  function gameOver(){ pauseGame(); bestScore = Math.max(bestScore, score); try{ document.getElementById('goScore').textContent='Score: '+score; document.getElementById('goBest').textContent='Best: '+bestScore; }catch(e){} showModal('gameover'); saveState(); }
+
+  // some modal/shop helpers (kept minimal)
+  function showModal(which){ modal.classList.remove('hidden'); modal.classList.add('visible'); modal.setAttribute('aria-hidden','false'); if (which==='shop'){ /* not critical */ } }
+  function hideModal(){ modal.classList.remove('visible'); modal.classList.add('hidden'); modal.setAttribute('aria-hidden','true'); }
+
+  // pointer & swipe detection
+  let isDown=false, points=[];
+  function addPoint(x,y){ points.push({x,y,ts:Date.now()}); if(points.length>16) points.shift(); addBladePoint(x,y); if(points.length>=2){ const p1=points[points.length-2], p2=points[points.length-1]; for(const f of Array.from(fruits)){ const r=f.getBoundingClientRect(); if(lineIntersectsRect(p1,p2,r)) sliceFruit(f); } } }
+  function onPointerDown(e){ if (modal.classList.contains('visible')) return; isDown=true; points=[]; addPoint(e.clientX,e.clientY); }
+  function onPointerMove(e){ if(!isDown) return; addPoint(e.clientX,e.clientY); }
+  function onPointerUp(){ isDown=false; points=[]; }
+  function lineIntersectsRect(p1,p2,rect){ if((p1.x<rect.left && p2.x<rect.left) || (p1.x>rect.right && p2.x>rect.right) || (p1.y<rect.top && p2.y<rect.top) || (p1.y>rect.bottom && p2.y>rect.bottom)) return false; return true; }
+  window.addEventListener('pointerdown', onPointerDown); window.addEventListener('pointermove', onPointerMove); window.addEventListener('pointerup', onPointerUp); window.addEventListener('pointercancel', onPointerUp); window.addEventListener('pointerleave', onPointerUp);
+  gameArea.addEventListener('touchmove', e=>{ if (!modal.classList.contains('visible')) e.preventDefault(); }, { passive:false });
+
+  // blade visuals
+  const bctx = bladeCanvas.getContext('2d'); let bladePoints=[], MAX=24;
+  function addBladePoint(x,y){ const r = gameArea.getBoundingClientRect(); bladePoints.push({x:x-r.left,y:y-r.top,t:Date.now()}); if(bladePoints.length>MAX) bladePoints.shift(); }
+  function drawBlade(){ bctx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height); if(bladePoints.length>1){ bctx.lineJoin='round'; bctx.lineCap='round'; bctx.beginPath(); bctx.moveTo(bladePoints[0].x,bladePoints[0].y); for(let i=1;i<bladePoints.length;i++) bctx.lineTo(bladePoints[i].x,bladePoints[i].y); bctx.strokeStyle='rgba(34,197,94,0.9)'; bctx.lineWidth=12; bctx.stroke(); } bladePoints = bladePoints.filter(p=>Date.now()-p.t<350); requestAnimationFrame(drawBlade); }
+  drawBlade();
+  window.addEventListener('pointermove', e=>{ if(e.buttons) addBladePoint(e.clientX,e.clientY); });
+
+  // resize canvas
+  function resizeCanvas(){ const r=gameArea.getBoundingClientRect(); bladeCanvas.width = Math.max(1, Math.floor(r.width)); bladeCanvas.height = Math.max(1, Math.floor(r.height)); }
+  window.addEventListener('resize', resizeCanvas); setTimeout(resizeCanvas,60);
+
+  // wiring
+  function safeAdd(el, ev, fn){ if(!el) return; el.removeEventListener(ev, fn); el.addEventListener(ev, fn); }
+  safeAdd(startBtn,'click', ()=> startGame()); safeAdd(pauseBtn,'click', ()=> pauseGame()); safeAdd(restartBtn,'click', ()=> restartGame()); safeAdd(shopBtn,'click', ()=> showModal('shop')); safeAdd(shopClose,'click', ()=> hideModal()); safeAdd(goRestart,'click', ()=> { hideModal(); restartGame(); });
+
+  // START listeners and auto-start fallback
+  function startHandler(e){ e && e.preventDefault && e.preventDefault(); startGame(); }
+  bigStart.addEventListener('click', startHandler);
+  bigStart.addEventListener('pointerdown', startHandler);
+  bigStart.addEventListener('touchstart', startHandler, {passive:false});
+  // fallback: start automatically after short delay
+  window.addEventListener('load', ()=>{
+    // try to auto-start after small delay
+    setTimeout(()=> {
+      try { startGame(); } catch(e) {}
+    }, 350);
+  });
+
+  // visibility handling (pause/resume)
+  document.addEventListener('visibilitychange', ()=>{
+    if (document.hidden){ if (running){ pauseGame(); } }
+    else { /* try resume */ if (!running) startGame(); }
+  });
+
+  // difficulty progression
+  setInterval(()=>{ if(!running) return; level+=1; levelEl.textContent=level; spawnInterval = Math.max(300, spawnInterval-60); if (spawnTimerId){ clearInterval(spawnTimerId); spawnTimerId = setInterval(()=>spawnFruit(), spawnInterval); } }, 30000);
+
+  // initial render
+  updateHUD(); applyBackground(currentBg);
+
+  // small safety check to suggest opening in full window
+  setTimeout(()=>{ const r = gameArea.getBoundingClientRect(); if (r.width < 40 || r.height < 40) { toast.style.display='block'; toast.textContent='Open in full window or open file directly in browser'; setTimeout(()=>toast.style.display='none',1600); } },600);
+
+  // helpers
+  function toastMsg(t,ms=900){ toast.textContent=t; toast.style.display='block'; setTimeout(()=>toast.style.display='none', ms); }
+  window.fruitcut = { reset: ()=> { localStorage.removeItem('fruitcut_state'); location.reload(); } };
+
+})();
+</script>
 </body>
 </html>
