@@ -1,244 +1,37 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🍉 Fruit Cut — Offline Game</title>
-<style>
-  body {
-    font-family: 'Poppins', sans-serif;
-    background: #eef1f5;
-    text-align: center;
-    margin: 0;
-    padding: 0;
-  }
-  h1 {
-    font-size: 2rem;
-    margin-top: 10px;
-  }
-  .stats {
-    display: flex;
-    justify-content: center;
-    gap: 15px;
-    flex-wrap: wrap;
-  }
-  .stat {
-    background: #fff;
-    padding: 10px 16px;
-    border-radius: 12px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-    font-size: 1.1rem;
-  }
-  #gameArea {
-    width: 320px;
-    height: 450px;
-    background: url('images/bg_wood.jpg') center/cover no-repeat;
-    margin: 10px auto;
-    border-radius: 14px;
-    overflow: hidden;
-    position: relative;
-  }
-  #startButton {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%,-50%);
-    background: #111;
-    color: white;
-    font-size: 1.3rem;
-    border: none;
-    padding: 14px 28px;
-    border-radius: 14px;
-    cursor: pointer;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-  }
-  .btn-bar {
-    margin-top: 8px;
-  }
-  .btn {
-    background: #111;
-    color: #fff;
-    border: none;
-    margin: 5px;
-    padding: 10px 16px;
-    border-radius: 10px;
-    font-size: 1rem;
-    cursor: pointer;
-  }
-  .btn:hover {
-    background: #333;
-  }
-  .fruit {
-    position: absolute;
-    width: 60px;
-    height: 60px;
-    pointer-events: none;
-    user-select: none;
-  }
-  #tip {
-    font-size: 0.9rem;
-    color: #333;
-    margin-top: 6px;
-  }
-  .slice {
-    width: 60px;
-    height: 60px;
-    position: absolute;
-  }
-</style>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Fruit Cut — Offline</title>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<div class="container">
+  <header class="header"><h1>🍉 Fruit Cut — Offline</h1></header>
 
-<h1>🍉 Fruit Cut — Offline Play</h1>
+  <div class="hud">
+    <div class="stat">Score: <strong id="score">0</strong></div>
+    <div class="stat">Lives: <strong id="lives">3</strong></div>
+    <div class="stat">Coins: <strong id="coins">0</strong></div>
+    <div class="stat">Level: <strong id="level">1</strong></div>
+  </div>
 
-<div class="stats">
-  <div class="stat">Score: <span id="score">0</span></div>
-  <div class="stat">Lives: <span id="lives">3</span></div>
-  <div class="stat">Coins: <span id="coins">0</span></div>
-  <div class="stat">Level: <span id="level">1</span></div>
+  <div id="gameWrapper">
+    <div id="gameArea" aria-label="Game area"></div>
+    <div id="status"><span id="statusText">Running: NO</span></div>
+    <div id="bigStart">START</div>
+  </div>
+
+  <div class="controls">
+    <button id="startBtn" class="btn ghost">Start</button>
+    <button id="pauseBtn" class="btn ghost">Pause</button>
+    <button id="restartBtn" class="btn ghost">Restart</button>
+  </div>
+
+  <p class="tip">Tip: Swipe fruits to slice. Avoid bombs 💣</p>
 </div>
 
-<div id="gameArea">
-  <button id="startButton">START</button>
-</div>
-
-<div class="btn-bar">
-  <button class="btn" id="pause">Pause</button>
-  <button class="btn" id="restart">Restart</button>
-  <button class="btn" id="shop">Shop</button>
-</div>
-
-<p id="tip">Tip: Slice fruits by swiping. Avoid 💣 bombs!</p>
-
-<script>
-const IMG_PATH = "images/";
-const FRUITS = [
-  "apple.png","orange.png","banana.png","strawberry.png",
-  "watermelon.png","mango.png","papaya.png",
-  "pineapple.png","pomegranate.png"
-];
-const BOMB = "bomb.png";
-
-let score = 0, lives = 3, coins = 0, level = 1;
-let running = false;
-let fruits = [];
-let spawnInterval;
-const area = document.getElementById("gameArea");
-const startBtn = document.getElementById("startButton");
-
-function updateStats() {
-  document.getElementById("score").innerText = score;
-  document.getElementById("lives").innerText = lives;
-  document.getElementById("coins").innerText = coins;
-  document.getElementById("level").innerText = level;
-}
-
-function spawnFruit() {
-  if (!running) return;
-  const img = document.createElement("img");
-  img.src = IMG_PATH + (Math.random() < 0.9 ? FRUITS[Math.floor(Math.random()*FRUITS.length)] : BOMB);
-  img.className = "fruit";
-  img.style.left = Math.random() * (area.clientWidth - 60) + "px";
-  img.style.bottom = "-70px";
-  area.appendChild(img);
-
-  let vy = 6 + Math.random()*3;
-  let gravity = 0.35;
-
-  const fall = setInterval(() => {
-    if (!running) { clearInterval(fall); return; }
-    let bottom = parseFloat(img.style.bottom);
-    img.style.bottom = bottom + vy + "px";
-    vy -= gravity;
-
-    // off screen
-    if (bottom < -80) {
-      clearInterval(fall);
-      if (area.contains(img)) area.removeChild(img);
-    }
-  }, 30);
-
-  img.addEventListener("click", () => sliceFruit(img));
-}
-
-function sliceFruit(img) {
-  if (img.src.includes(BOMB)) {
-    lives--;
-    if (lives <= 0) {
-      endGame();
-      return;
-    }
-  } else {
-    score += 10;
-    coins += 2;
-  }
-  updateStats();
-
-  // fruit halves animation
-  const half1 = document.createElement("img");
-  const half2 = document.createElement("img");
-  half1.src = img.src;
-  half2.src = img.src;
-  half1.className = "slice";
-  half2.className = "slice";
-  half1.style.left = img.style.left;
-  half1.style.bottom = img.style.bottom;
-  half2.style.left = img.style.left;
-  half2.style.bottom = img.style.bottom;
-  area.appendChild(half1);
-  area.appendChild(half2);
-  if (area.contains(img)) area.removeChild(img);
-
-  let fall1 = 4, fall2 = 4, rot1 = 0, rot2 = 0;
-  const anim = setInterval(() => {
-    fall1 -= 0.3; fall2 -= 0.3;
-    rot1 += 8; rot2 -= 8;
-    let b1 = parseFloat(half1.style.bottom);
-    let b2 = parseFloat(half2.style.bottom);
-    half1.style.bottom = (b1 + fall1) + "px";
-    half2.style.bottom = (b2 + fall2) + "px";
-    half1.style.transform = `rotate(${rot1}deg) translateX(-15px)`;
-    half2.style.transform = `rotate(${rot2}deg) translateX(15px)`;
-    if (b1 < -80) {
-      clearInterval(anim);
-      if (area.contains(half1)) area.removeChild(half1);
-      if (area.contains(half2)) area.removeChild(half2);
-    }
-  }, 30);
-}
-
-function startGame() {
-  if (running) return;
-  running = true;
-  startBtn.style.display = "none";
-  updateStats();
-  spawnInterval = setInterval(spawnFruit, 900 - level*50);
-}
-
-function pauseGame() {
-  running = !running;
-  if (running) startBtn.style.display = "none";
-  else startBtn.style.display = "block";
-}
-
-function restartGame() {
-  score = 0; lives = 3; coins = 0; level = 1;
-  running = false;
-  area.querySelectorAll(".fruit,.slice").forEach(f => f.remove());
-  startBtn.style.display = "block";
-  updateStats();
-}
-
-function endGame() {
-  running = false;
-  clearInterval(spawnInterval);
-  alert("Game Over!\nYour Score: " + score);
-  restartGame();
-}
-
-document.getElementById("pause").onclick = pauseGame;
-document.getElementById("restart").onclick = restartGame;
-startBtn.onclick = startGame;
-</script>
+<script src="game.js"></script>
 </body>
-  </html>
+</html>
