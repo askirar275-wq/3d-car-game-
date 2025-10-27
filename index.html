@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Offline</title>
+<title>Fruit Cut — Offline (with Eruda)</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -27,11 +27,42 @@
     <button id="startBtn" class="btn ghost">Start</button>
     <button id="pauseBtn" class="btn ghost">Pause</button>
     <button id="restartBtn" class="btn ghost">Restart</button>
+    <button id="erudaToggle" class="btn ghost" title="Toggle eruda console">Console</button>
   </div>
 
   <p class="tip">Tip: Swipe fruits to slice. Avoid bombs 💣</p>
 </div>
 
+<!-- Eruda (mobile dev console) - loads from CDN -->
+<script>
+  // Load eruda only when user toggles or after small delay (so offline still works if CDN blocked)
+  function loadEruda(callback){
+    if(window.eruda) { if(callback) callback(); return; }
+    var s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/eruda';
+    s.onload = function(){ eruda.init(); console.log('Eruda loaded'); if(callback) callback(); };
+    s.onerror = function(){ console.warn('Eruda failed to load from CDN'); };
+    document.body.appendChild(s);
+  }
+  // Shortcut: load after 1.5s quietly (best-effort)
+  setTimeout(()=> { try{ loadEruda(); } catch(e){ console.warn('Eruda load error', e); } }, 1500);
+</script>
+
 <script src="game.js"></script>
+<script>
+  // Toggle button for eruda in UI
+  document.getElementById('erudaToggle').addEventListener('click', ()=>{
+    if(window.eruda){
+      // open/close eruda panel
+      try{
+        eruda.toggle();
+      }catch(e){
+        console.warn('eruda.toggle error', e);
+      }
+    } else {
+      loadEruda(()=> { if(window.eruda) eruda.show(); });
+    }
+  });
+</script>
 </body>
-</html>
+  </html>
