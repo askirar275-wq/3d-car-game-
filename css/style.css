@@ -1,8 +1,8 @@
 :root{--bg:#eef1f5;--panel:#fff;--accent:#111}
 *{box-sizing:border-box}
 body{margin:0;font-family:Inter,system-ui,Roboto,Arial;color:#111;background:var(--bg)}
-.container{max-width:520px;margin:10px auto;padding:12px}
-h1{font-size:26px;margin:6px 0;text-align:center}
+.container{max-width:520px;margin:10px auto;padding:12px;text-align:center}
+h1{font-size:26px;margin:6px 0}
 .hud{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:12px}
 .stat{background:var(--panel);padding:8px 12px;border-radius:12px;box-shadow:0 8px 20px rgba(2,6,23,0.06)}
 #gameWrapper{position:relative;height:520px;border-radius:12px;overflow:hidden;background:#efe9e1;border:1px solid rgba(0,0,0,0.06)}
@@ -16,18 +16,13 @@ h1{font-size:26px;margin:6px 0;text-align:center}
 #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1000;background:#111;color:#fff;padding:16px 22px;border-radius:12px;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,0.25)}
 #status{position:absolute;left:12px;top:12px;background:rgba(255,255,255,0.95);padding:8px;border-radius:8px}
 .tip{color:#444;text-align:center;margin-top:10px}
-
-/* modal shop */
 .modal{position:fixed;inset:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:2000}
 .hidden{display:none}
 .modal-card{background:#fff;padding:16px;border-radius:12px;max-width:420px;width:92%}
 .shop-list{display:flex;flex-wrap:wrap;gap:8px;justify-content:center}
 .shop-item{width:120px;border:1px solid #eee;padding:8px;border-radius:8px;text-align:center}
 .shop-item button{margin-top:8px;padding:6px 8px;border-radius:6px;border:none;background:#111;color:#fff}
-
-/* backgrounds you can buy (classes applied to #gameWrapper) */
-.bg-wood{background: url('../images/bg-wood.jpg') center/cover no-repeat}
-.bg-lake{background: url('../images/bg-lake.jpg') center/cover no-repeat}
-.bg-mountain{background: url('../images/bg-mountain.jpg') center/cover no-repeat}
-
-@media (max-width:480px){ .fruit,.piece{width:60px;height:60px} #gameWrapper{height:480px} h1{font-size:20px} }
+.bg-wood{background:url('../images/bg-wood.jpg') center/cover no-repeat}
+.bg-lake{background:url('../images/bg-lake.jpg') center/cover no-repeat}
+.bg-mountain{background:url('../images/bg-mountain.jpg') center/cover no-repeat}
+@media (max-width:480px){.fruit,.piece{width:60px;height:60px}#gameWrapper{height:480px}h1{font-size:20px}}
