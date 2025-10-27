@@ -3,12 +3,32 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Offline (with Eruda)</title>
-<link rel="stylesheet" href="styles.css">
+<title>Fruit Cut — Offline (single file)</title>
+<style>
+  :root{--bg:#eef1f5;--panel:#fff;--accent:#111}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Inter, system-ui, -apple-system, Roboto, Arial;color:#111;background:var(--bg)}
+  .wrap{max-width:520px;margin:10px auto;padding:12px}
+  h1{font-size:28px;margin:6px 0 10px}
+  .hud{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:12px}
+  .stat{background:var(--panel);padding:8px 12px;border-radius:12px;box-shadow:0 8px 20px rgba(2,6,23,0.06)}
+  #gameWrapper{position:relative;height:560px;border-radius:12px;overflow:hidden;background:#efe9e1;border:1px solid rgba(0,0,0,0.06)}
+  #gameArea{position:absolute;inset:0;touch-action:none;background:linear-gradient(#f8f7f5,#efe9e1);display:block}
+  .fruit{position:absolute;width:72px;height:72px;pointer-events:none;user-select:none;will-change:transform,opacity;object-fit:contain;background:transparent}
+  .piece{position:absolute;width:72px;height:72px;pointer-events:none;user-select:none;will-change:transform,opacity;transform:translate(-50%,-50%)}
+  .controls{display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+  .btn{background:var(--accent);color:#fff;border:0;padding:10px 14px;border-radius:10px;cursor:pointer}
+  .btn.ghost{background:#fff;color:#111;border:1px solid #eee;box-shadow:none}
+  #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1000;background:#111;color:#fff;padding:16px 22px;border-radius:12px;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,0.25)}
+  #status{position:absolute;left:12px;top:12px;background:rgba(255,255,255,0.95);padding:8px;border-radius:8px}
+  .tip{color:#444;text-align:center;margin-top:10px}
+  /* small responsive */
+  @media (max-width:480px){ .fruit,.piece{width:60px;height:60px} #gameWrapper{height:520px} h1{font-size:22px} }
+</style>
 </head>
 <body>
-<div class="container">
-  <header class="header"><h1>🍉 Fruit Cut — Offline</h1></header>
+<div class="wrap">
+  <h1>🍉 Fruit Cut — Offline</h1>
 
   <div class="hud">
     <div class="stat">Score: <strong id="score">0</strong></div>
@@ -17,7 +37,7 @@
     <div class="stat">Level: <strong id="level">1</strong></div>
   </div>
 
-  <div id="gameWrapper">
+  <div id="gameWrapper" role="application" aria-label="Fruit game area">
     <div id="gameArea" aria-label="Game area"></div>
     <div id="status"><span id="statusText">Running: NO</span></div>
     <div id="bigStart">START</div>
@@ -27,110 +47,213 @@
     <button id="startBtn" class="btn ghost">Start</button>
     <button id="pauseBtn" class="btn ghost">Pause</button>
     <button id="restartBtn" class="btn ghost">Restart</button>
-    <button id="erudaToggle" class="btn ghost" title="Toggle eruda console">Console</button>
+    <button id="erudaToggle" class="btn ghost">Console</button>
   </div>
 
   <p class="tip">Tip: Swipe fruits to slice. Avoid bombs 💣</p>
 </div>
 
-<!-- Eruda (mobile dev console) - loads from CDN -->
 <script>
-  // Load eruda only when user toggles or after small delay (so offline still works if CDN blocked)
-  function loadEruda(callback){
-    if(window.eruda) { if(callback) callback(); return; }
-    var s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/eruda';
-    s.onload = function(){ eruda.init(); console.log('Eruda loaded'); if(callback) callback(); };
-    s.onerror = function(){ console.warn('Eruda failed to load from CDN'); };
-    document.body.appendChild(s);
+/* ---------- CONFIG: put your image filenames in images/ folder ---------- */
+const IMG_PATH = "images/"; // folder relative to this index.html
+const FRUITS = [
+  "apple2.png","orange2.png","banana2.png","strawberry2.png",
+  "watermelon2.png","mango2.png","papaya2.png","pineapple2.png","pomegranate2.png"
+];
+const BOMB = "bomb.png";
+/* --------------------------------------------------------------------- */
+
+/* GAME STATE */
+let score=0, lives=3, coins=0, level=1;
+let running=false, spawnTimer=null, spawnInterval=900;
+const active = [];
+const area = document.getElementById("gameArea");
+const statusEl = document.getElementById("statusText");
+
+/* UI helpers */
+function updateHUD(){
+  document.getElementById("score").textContent = score;
+  document.getElementById("lives").textContent = lives;
+  document.getElementById("coins").textContent = coins;
+  document.getElementById("level").textContent = level;
+  statusEl.textContent = running ? "Running: YES" : "Running: NO";
+}
+
+/* util */
+function rand(a,b){ return Math.random()*(b-a)+a; }
+
+/* physics loop */
+let last = performance.now();
+function loop(t){
+  const dt = Math.min(40, t-last)/16.666;
+  last = t;
+  for(let i=active.length-1;i>=0;i--){
+    const f = active[i];
+    f.vy -= 0.36 * dt;
+    f.x += f.vx * dt;
+    f.y += f.vy * dt;
+    f.rot += f.vx * 0.8 * dt;
+    f.el.style.transform = `translate(${f.x}px, ${-f.y}px) rotate(${f.rot}deg)`;
+    if(f.x < -200 || f.x > area.clientWidth + 200 || f.y < -300){
+      if(f.el.parentNode) f.el.parentNode.removeChild(f.el);
+      active.splice(i,1);
+    }
   }
-  // Shortcut: load after 1.5s quietly (best-effort)
-  setTimeout(()=> { try{ loadEruda(); } catch(e){ console.warn('Eruda load error', e); } }, 1500);
-</script>
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
 
-<script src="game.js"></script>
-<script>
-  // Toggle button for eruda in UI
-  document.getElementById('erudaToggle').addEventListener('click', ()=>{
-    if(window.eruda){
-      <script>
-  // ---- Replace previous Eruda loader + toggle code with this robust version ----
+/* spawn function */
+function spawnFruit(spec, startX){
+  if(!running) return;
+  const name = spec || (Math.random() < 0.9 ? FRUITS[Math.floor(Math.random()*FRUITS.length)] : BOMB);
+  const img = document.createElement("img");
+  img.className = "fruit";
+  img.src = IMG_PATH + name;
+  img.draggable = false;
+  // size responsive
+  const ar = area.getBoundingClientRect();
+  const w = Math.max(48, Math.min(96, ar.width * 0.13));
+  img.style.width = w + "px";
+  const x = (typeof startX === 'number') ? startX : rand(16, Math.max(40, ar.width - w - 16));
+  const startY = -120;
+  img.style.left = x + "px";
+  img.style.bottom = (startY - 20) + "px";
+  img.style.transform = `translate(${x}px, ${-startY}px)`;
+  img.dataset.type = name;
+  area.appendChild(img);
 
-  // Track visibility ourselves
-  let erudaVisible = false;
+  const vy = 10 + Math.random()*6;
+  const vx = rand(-2.2,2.2);
+  const rot = rand(-25,25);
+  active.push({el:img, x:x, y:startY, vx: vx, vy: vy, rot:rot, type:name, w:w, h:w});
+}
 
-  function ensureEruda(cb){
-    if(window.eruda){
-      // already loaded
-      return cb && cb();
-    }
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/eruda';
-    s.async = true;
-    s.onload = function(){
-      try {
-        // init and show UI
-        eruda.init();
-        erudaVisible = true;
-        console.log('Eruda loaded & init done');
-        if (typeof eruda.show === 'function') eruda.show();
-      } catch(err){
-        console.warn('Eruda init error', err);
-      }
-      if(cb) cb();
-    };
-    s.onerror = function(e){
-      console.warn('Eruda failed to load from CDN', e);
-      if(cb) cb(new Error('eruda-load-failed'));
-    };
-    document.head.appendChild(s);
+/* remove active mapping */
+function removeActiveEl(el){
+  for(let i=active.length-1;i>=0;i--){
+    if(active[i].el === el){ active.splice(i,1); return; }
+  }
+}
+
+/* split (create halves) */
+function splitFruit(el){
+  if(!el) return;
+  const rect = el.getBoundingClientRect();
+  const parent = area.getBoundingClientRect();
+  const cx = rect.left + rect.width/2 - parent.left;
+  const cy = parent.bottom - (rect.top + rect.height/2);
+
+  if(el.dataset.type === BOMB){
+    lives = Math.max(0, lives-1);
+    playBombSound();
+    if(lives<=0) endGame();
+    updateHUD();
+  } else {
+    score += 10; coins += 2; playSliceSound(); updateHUD();
   }
 
-  // Toggle button behavior (safe)
-  document.getElementById('erudaToggle').addEventListener('click', ()=>{
-    // if eruda not loaded -> load and show
-    if(!window.eruda){
-      ensureEruda((err)=>{
-        if(err){
-          alert('Eruda load failed. Check network or use DevTools on desktop.');
-          return;
-        }
-        // make sure visible flag is true if show available
-        erudaVisible = !!(window.eruda && typeof window.eruda.show === 'function');
-      });
-      return;
+  if(el.parentNode) el.parentNode.removeChild(el);
+  removeActiveEl(el);
+
+  const left = document.createElement("img");
+  const right = document.createElement("img");
+  left.className = "piece"; right.className = "piece";
+  left.src = right.src = el.src;
+  left.style.width = rect.width + "px"; left.style.height = rect.height + "px";
+  right.style.width = rect.width + "px"; right.style.height = rect.height + "px";
+  left.style.left = cx + "px"; left.style.top = (parent.height - cy) + "px";
+  right.style.left = cx + "px"; right.style.top = (parent.height - cy) + "px";
+  left.style.clipPath = "inset(0 50% 0 0)"; right.style.clipPath = "inset(0 0 0 50%)";
+  area.appendChild(left); area.appendChild(right);
+
+  let l = {el:left, x:cx, y:cy, vx:-2 - Math.random()*2, vy:8 + Math.random()*3, rot:-rand(10,60)};
+  let r = {el:right, x:cx, y:cy, vx:2 + Math.random()*2, vy:8 + Math.random()*3, rot:rand(10,60)};
+  const parts = [l,r];
+  function step(){
+    for(let i=parts.length-1;i>=0;i--){
+      const p = parts[i];
+      p.vy -= 0.34;
+      p.x += p.vx;
+      p.y += p.vy;
+      p.rot += p.vx * 0.6;
+      p.el.style.transform = `translate(${p.x}px, ${-p.y}px) rotate(${p.rot}deg)`;
+      p.el.style.opacity = Math.max(0, 1 - (200 - p.y)/180);
+      if(p.y < -240){ if(p.el.parentNode) p.el.parentNode.removeChild(p.el); parts.splice(i,1); }
     }
+    if(parts.length) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
 
-    // if loaded, toggle using show/hide if available
-    try {
-      if (erudaVisible) {
-        if (typeof eruda.hide === 'function') {
-          eruda.hide();
-        } else {
-          // fallback: try closing panels
-          try { eruda.get && eruda.get('console') && eruda.get('console').hide && eruda.get('console').hide(); } catch(e){}
-        }
-        erudaVisible = false;
-      } else {
-        if (typeof eruda.show === 'function') {
-          eruda.show();
-        } else {
-          try { eruda.get && eruda.get('console') && eruda.get('console').show && eruda.get('console').show(); } catch(e){}
-        }
-        erudaVisible = true;
-      }
-    } catch(ex){
-      console.warn('eruda toggle safe-fallback error', ex);
+/* pointer slicing detection (line vs rect) */
+let isDown=false, points=[];
+function addPoint(x,y){ points.push({x,y,ts:Date.now()}); if(points.length>18) points.shift(); if(points.length>=2){ const p1=points[points.length-2], p2=points[points.length-1]; for(const f of Array.from(active)){ const r=f.el.getBoundingClientRect(); if(lineIntersectsRect(p1,p2,r)){ splitFruit(f.el); } } } }
+function onDown(e){ isDown=true; points=[]; addPoint(e.clientX,e.clientY); }
+function onMove(e){ if(!isDown) return; addPoint(e.clientX,e.clientY); }
+function onUp(){ isDown=false; points=[]; }
+function lineIntersectsRect(p1,p2,rect){ if((p1.x<rect.left&&p2.x<rect.left)||(p1.x>rect.right&&p2.x>rect.right)||(p1.y<rect.top&&p2.y<rect.top)||(p1.y>rect.bottom&&p2.y>rect.bottom)) return false; return true; }
+window.addEventListener('pointerdown', onDown);
+window.addEventListener('pointermove', onMove);
+window.addEventListener('pointerup', onUp);
+window.addEventListener('pointercancel', onUp);
+
+/* controls */
+function startGame(){ if(running) return; running=true; document.getElementById("bigStart").style.display='none'; updateHUD(); if(spawnTimer) clearInterval(spawnTimer); spawnTimer = setInterval(()=>spawnFruit(), Math.max(380, spawnInterval - level*30)); spawnFruit(); }
+function pauseGame(){ running = !running; if(!running && spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } if(running && !spawnTimer){ spawnTimer = setInterval(()=>spawnFruit(), Math.max(380, spawnInterval - level*30)); } updateHUD(); }
+function restartGame(){ for(const f of Array.from(active)){ if(f.el.parentNode) f.el.parentNode.removeChild(f.el); } active.length=0; score=0; lives=3; coins=0; level=1; running=false; document.getElementById("bigStart").style.display='block'; if(spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } updateHUD(); }
+function endGame(){ running=false; if(spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } alert("Game Over! Score: "+score); restartGame(); }
+
+/* sound (light synth) */
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+const audio = AudioCtx ? new AudioCtx() : null;
+function playTone(freq, type='sine', dur=0.08, vol=0.08){ if(!audio) return; try{ const now = audio.currentTime; const o = audio.createOscillator(); const g = audio.createGain(); o.type=type; o.frequency.setValueAtTime(freq, now); g.gain.setValueAtTime(vol, now); g.gain.exponentialRampToValueAtTime(0.0001, now+dur); o.connect(g); g.connect(audio.destination); o.start(now); o.stop(now+dur+0.02);}catch(e){} }
+function playSliceSound(){ playTone(rand(500,760),'sine',0.06,0.08); }
+function playBombSound(){ playTone(120,'sawtooth',0.12,0.16); setTimeout(()=>playTone(80,'sine',0.1,0.08),60); }
+
+/* wire buttons */
+document.getElementById("startBtn").addEventListener('click', startGame);
+document.getElementById("pauseBtn").addEventListener('click', pauseGame);
+document.getElementById("restartBtn").addEventListener('click', restartGame);
+document.getElementById("bigStart").addEventListener('click', startGame);
+
+/* Eruda robust loader + toggle (safe) */
+let erudaVisible = false;
+function ensureEruda(cb){
+  if(window.eruda){ cb && cb(); return; }
+  var s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/eruda';
+  s.async = true;
+  s.onload = function(){
+    try { eruda.init(); erudaVisible = true; if(typeof eruda.show === 'function') eruda.show(); console.log('Eruda loaded'); }
+    catch(e){ console.warn('eruda init failed', e); }
+    if(cb) cb();
+  };
+  s.onerror = function(e){ console.warn('eruda load failed', e); if(cb) cb(e); };
+  document.head.appendChild(s);
+}
+document.getElementById('erudaToggle').addEventListener('click', ()=>{
+  if(!window.eruda){ ensureEruda(err=>{ if(err) alert('Eruda load failed (network). Use desktop devtools.'); }); return; }
+  try{
+    if(erudaVisible){
+      if(typeof eruda.hide === 'function') eruda.hide();
+      else { try{ eruda.get('console') && eruda.get('console').hide(); }catch(e){} }
+      erudaVisible = false;
+    } else {
+      if(typeof eruda.show === 'function') eruda.show();
+      else { try{ eruda.get('console') && eruda.get('console').show(); }catch(e){} }
+      erudaVisible = true;
     }
-  });
+  }catch(e){ console.warn('eruda toggle error', e); }
+});
+setTimeout(()=>{ try{ ensureEruda(); }catch(e){/* ignore */} },1500);
 
-  // Small best-effort auto-load (optional). If you don't want auto-load remove this.
-  setTimeout(()=>{
-    try {
-      if (!window.eruda) ensureEruda();
-    } catch(e) { console.warn('autoloader error', e); }
-  }, 1500);
+/* debug heartbeat (for on-screen dev if needed) */
+setInterval(()=>{ console.debug('STATUS', {running, spawnTimer:!!spawnTimer, active: active.length, score, lives}); }, 1500);
 
+/* autostart attempt */
+window.addEventListener('load', ()=> setTimeout(()=> { try { /* don't force if mobile auto-play blocked */ } catch(e){} }, 200));
+updateHUD();
 </script>
 </body>
-  </html>
+</html>
