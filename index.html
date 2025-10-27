@@ -1,37 +1,51 @@
 <!doctype html>
 <html lang="hi">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>🍉 Fruit Cut — Offline</title>
-<link rel="stylesheet" href="css/style.css">
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Fruit Cut — Next (Combo, Trail, Shop)</title>
+<link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
-<div class="container">
-  <header><h1>🍉 Fruit Cut — Offline</h1></header>
+  <div class="container">
+    <header><h1>🍉 Fruit Cut — Next</h1></header>
 
-  <div class="hud">
-    <div class="stat">Score: <span id="score">0</span></div>
-    <div class="stat">Lives: <span id="lives">3</span></div>
-    <div class="stat">Coins: <span id="coins">0</span></div>
-    <div class="stat">Level: <span id="level">1</span></div>
+    <div class="hud">
+      <div class="stat">Score: <span id="score">0</span></div>
+      <div class="stat">Lives: <span id="lives">3</span></div>
+      <div class="stat">Coins: <span id="coins">0</span></div>
+      <div class="stat">Level: <span id="level">1</span></div>
+      <div class="stat">Combo: <span id="combo">0x</span></div>
+    </div>
+
+    <div id="gameWrapper">
+      <div id="gameArea"></div>
+      <canvas id="trailCanvas"></canvas>
+      <div id="status"><span id="statusText">Running: NO</span></div>
+      <button id="bigStart">START</button>
+    </div>
+
+    <div class="controls">
+      <button id="startBtn" class="btn ghost">Start</button>
+      <button id="pauseBtn" class="btn ghost">Pause</button>
+      <button id="restartBtn" class="btn ghost">Restart</button>
+      <button id="shopBtn" class="btn ghost">Shop</button>
+    </div>
+
+    <p class="tip">Tip: Swipe fruits quickly to combo. Buy backgrounds in Shop with coins.</p>
   </div>
 
-  <div id="gameWrapper">
-    <div id="gameArea"></div>
-    <div id="status"><span id="statusText">Running: NO</span></div>
-    <button id="bigStart">START</button>
+  <!-- Shop modal -->
+  <div id="shopModal" class="modal hidden">
+    <div class="modal-card">
+      <h2>Shop — Backgrounds</h2>
+      <div id="shopList" class="shop-list"></div>
+      <div style="text-align:center;margin-top:12px">
+        <button id="shopClose" class="btn">Close</button>
+      </div>
+    </div>
   </div>
 
-  <div class="controls">
-    <button id="startBtn" class="btn ghost">Start</button>
-    <button id="pauseBtn" class="btn ghost">Pause</button>
-    <button id="restartBtn" class="btn ghost">Restart</button>
-  </div>
-
-  <p class="tip">Tip: Swipe fruits to slice. Avoid bombs 💣</p>
-</div>
-
-<script src="js/game.js"></script>
+  <script src="js/game.js"></script>
 </body>
 </html>
