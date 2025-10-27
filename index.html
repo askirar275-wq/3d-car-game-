@@ -1,422 +1,51 @@
-/* game.js - Performance optimized: preloads images, caches layout, throttles pointer events
-   Put this file in js/ and keep images/ at project root (or adjust IMG_PATHS).
-*/
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Fruit Cut — Offline</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="container">
+    <h1>🍉 Fruit Cut — Offline</h1>
 
-/* ------------ CONFIG ------------- */
-const IMG_PATHS = ["images/", "../images/", "./images/"]; // attempts in order
-const FRUITS = [
-  "apple.png","banana.png","orange.png","strawberry.png",
-  "watermelon.png","mango.png","papaya.png","pineapple.png","pomegranate.png"
-];
-const BOMB = "bomb.png";
+    <div class="hud">
+      <div class="stat">Score: <span id="score">0</span></div>
+      <div class="stat">Lives: <span id="lives">3</span></div>
+      <div class="stat">Coins: <span id="coins">0</span></div>
+      <div class="stat">Level: <span id="level">1</span></div>
+      <div class="stat">Combo: <span id="combo">x1</span></div>
+    </div>
 
-/* physics tuning for smoothness */
-const GRAVITY = 0.28;
-const THROW_VY_MIN = 18;
-const THROW_VY_MAX = 22;
-const VX_MAX = 2.2;
-let SPAWN_INTERVAL = 900; // ms (you can increase to reduce CPU)
+    <div id="gameWrapper">
+      <div id="gameArea" aria-label="Game area"></div>
+      <canvas id="trailCanvas"></canvas>
+      <div id="status"><span id="statusText">Running: NO</span></div>
+      <button id="bigStart">START</button>
+    </div>
 
-const area = document.getElementById('gameArea');
-const statusText = document.getElementById('statusText');
+    <div class="controls">
+      <button id="startBtn" class="btn ghost">Start</button>
+      <button id="pauseBtn" class="btn ghost">Pause</button>
+      <button id="restartBtn" class="btn ghost">Restart</button>
+      <button id="shopBtn" class="btn ghost">Shop</button>
+    </div>
 
-/* ---------- GAME STATE ---------- */
-let score = 0, lives = 3, coins = 0, level = 1;
-let running = false, spawnTimer = null;
-const active = []; // active objects
-let areaWidth = 0, areaHeight = 0; // cached layout values
+    <p class="tip">Tip: Swipe fruits to slice. Avoid bombs 💣</p>
+  </div>
 
-/* ---------- PRELOAD IMAGES ---------- */
-const IMAGE_CACHE = {}; // filename -> HTMLImageElement (loaded)
+  <!-- Shop modal -->
+  <div id="shopModal" class="modal hidden">
+    <div class="modal-card">
+      <h2>Shop</h2>
+      <div id="shopList" class="shop-list"></div>
+      <div style="text-align:center;margin-top:12px">
+        <button id="shopClose" class="btn">Close</button>
+      </div>
+    </div>
+  </div>
 
-function tryLoadImageOnce(base, filename){
-  return new Promise((resolve, reject)=>{
-    const img = new Image();
-    img.onload = ()=> resolve({ok:true, img, url: base + filename});
-    img.onerror = ()=> reject(base + filename);
-    img.src = base + filename;
-  });
-}
-
-async function loadImageFromPaths(filename){
-  for(const base of IMG_PATHS){
-    try{
-      const res = await tryLoadImageOnce(base, filename);
-      return res.img; // return loaded HTMLImageElement
-    } catch(e){
-      // try next
-    }
-  }
-  // last attempt: try filename directly
-  try {
-    const img = new Image();
-    await new Promise((res, rej)=>{
-      img.onload = res; img.onerror = rej; img.src = filename;
-    });
-    return img;
-  } catch(e){
-    console.warn("Failed to load image:", filename);
-    return null;
-  }
-}
-
-async function preloadAll(){
-  const list = FRUITS.concat([BOMB]);
-  const promises = list.map(async (fname)=>{
-    const img = await loadImageFromPaths(fname);
-    if(img) IMAGE_CACHE[fname] = img;
-  });
-  await Promise.all(promises);
-  console.log("Images preloaded:", Object.keys(IMAGE_CACHE));
-}
-
-/* ---------- helper: convert near-white -> transparent (same origin only) ---------- */
-function makeImageTransparentIfPossible(img){
-  // returns Promise that resolves when conversion done (or rejects)
-  return new Promise((resolve)=>{
-    try {
-      if(!img.complete){ img.addEventListener('load', ()=> { _proc(); }, {once:true}); }
-      else _proc();
-    } catch(e){
-      resolve(false);
-    }
-    function _proc(){
-      try {
-        const w = img.naturalWidth || img.width;
-        const h = img.naturalHeight || img.height;
-        if(!w || !h) { resolve(false); return; }
-        const c = document.createElement('canvas');
-        c.width = w; c.height = h;
-        const ctx = c.getContext('2d');
-        ctx.drawImage(img,0,0,w,h);
-        const id = ctx.getImageData(0,0,w,h);
-        const data = id.data;
-        const tol = 230;
-        for(let i=0;i<data.length;i+=4){
-          if(data[i] >= tol && data[i+1] >= tol && data[i+2] >= tol) data[i+3] = 0;
-        }
-        ctx.putImageData(id,0,0);
-        const url = c.toDataURL('image/png'); // convert to dataURL
-        img.src = url;
-        resolve(true);
-      } catch(err){
-        // probably CORS, cannot access pixels
-        resolve(false);
-      }
-    }
-  });
-}
-
-/* ---------- layout cache & resize ---------- */
-function recalcAreaSize(){
-  const r = area.getBoundingClientRect();
-  areaWidth = Math.max(1, Math.floor(r.width));
-  areaHeight = Math.max(1, Math.floor(r.height));
-  const trailCanvas = document.getElementById('trailCanvas');
-  if(trailCanvas){
-    trailCanvas.width = areaWidth;
-    trailCanvas.height = areaHeight;
-    trailCanvas.style.width = areaWidth + 'px';
-    trailCanvas.style.height = areaHeight + 'px';
-  }
-}
-window.addEventListener('resize', ()=>{ recalcAreaSize(); });
-setTimeout(recalcAreaSize, 120);
-
-/* ---------- rendering loop ---------- */
-let last = performance.now();
-function loop(now){
-  const dt = Math.min(40, now - last) / 16.666;
-  last = now;
-
-  // iterate active fruits backwards (safe removal)
-  for(let i = active.length - 1; i >= 0; i--){
-    const f = active[i];
-    // integrate physics
-    f.vy -= GRAVITY * dt;
-    f.x += f.vx * dt;
-    f.y += f.vy * dt;
-    f.rot += f.vx * 0.7 * dt;
-
-    // clamp top (gentle bounce)
-    if(f.y > (areaHeight - 36)){
-      f.y = areaHeight - 36;
-      f.vy = -Math.abs(f.vy) * 0.5;
-    }
-
-    // apply transform (use translate3d for GPU)
-    f.el.style.transform = `translate3d(${f.x}px, ${-f.y}px, 0) rotate(${f.rot}deg)`;
-
-    // cleanup if off-screen
-    if(f.x < -300 || f.x > areaWidth + 300 || f.y < -500){
-      if(f.el.parentNode) f.el.parentNode.removeChild(f.el);
-      active.splice(i,1);
-    }
-  }
-
-  requestAnimationFrame(loop);
-}
-
-/* ---------- spawn function (uses preloaded images) ---------- */
-function spawnFruit(specName, startX){
-  if(!running) return;
-  const name = specName || (Math.random() < 0.9 ? FRUITS[Math.floor(Math.random()*FRUITS.length)] : BOMB);
-  // pick cached image (or fallback to loading on-the-fly)
-  const cached = IMAGE_CACHE[name];
-  const imgEl = document.createElement('img');
-  imgEl.className = 'fruit';
-  imgEl.draggable = false;
-  imgEl.dataset.type = name;
-
-  // size (bigger but reasonable)
-  const size = Math.max(84, Math.min(140, areaWidth * 0.22));
-  imgEl.style.width = size + 'px';
-  imgEl.style.height = 'auto';
-
-  // position
-  const x = (typeof startX === 'number') ? startX : rand(40, Math.max(40, areaWidth - size - 40));
-  const startY = -150;
-  imgEl.style.left = x + 'px';
-  imgEl.style.bottom = startY + 'px';
-
-  // use cached src if available (fast)
-  if(cached){
-    imgEl.src = cached.src;
-    // attempt transparent conversion only once per filename for speed
-    if(!cached.__transparentAttempted){
-      cached.__transparentAttempted = true;
-      // try but don't block: it's async; conversion updates cached.src -> dataURL
-      makeImageTransparentIfPossible(cached).then(ok=>{
-        if(ok){
-          // update all future clones to use converted src
-          IMAGE_CACHE[name] = cached;
-        }
-      });
-    }
-  } else {
-    // fallback: try to load from paths (non-blocking)
-    tryLoadSrcQuick(imgEl, name);
-  }
-
-  // append element
-  area.appendChild(imgEl);
-
-  // physics initial velocities (slower than before for smoothness)
-  const vy = THROW_VY_MIN + Math.random() * (THROW_VY_MAX - THROW_VY_MIN);
-  const vx = rand(-VX_MAX, VX_MAX);
-  const rot = rand(-22, 22);
-
-  active.push({ el: imgEl, x: x, y: startY, vx: vx, vy: vy, rot: rot, type: name });
-}
-
-/* small quick loader for fallback elements (non-blocking) */
-function tryLoadSrcQuick(imgEl, filename){
-  (async ()=>{
-    const img = await loadImageFromPaths(filename).catch(()=>null);
-    if(img) imgEl.src = img.src;
-  })();
-}
-
-/* ---------- slicing detection (throttled pointer handling) ---------- */
-let isDown = false;
-let points = [];
-const MAX_POINTS = 18;
-let lastPointerTime = 0;
-const POINTER_THROTTLE_MS = 16; // ~60Hz
-
-// trail canvas drawing (simple)
-const trailCanvas = document.getElementById('trailCanvas');
-const tctx = trailCanvas && trailCanvas.getContext ? trailCanvas.getContext('2d') : null;
-let trailPoints = [];
-const TRAIL_LIFE = 360;
-
-function addTrailPoint(clientX, clientY){
-  const rect = area.getBoundingClientRect();
-  const px = clientX - rect.left;
-  const py = clientY - rect.top;
-  trailPoints.push({x:px, y:py, t: Date.now()});
-  if(trailPoints.length > 40) trailPoints.shift();
-}
-
-function drawTrail(){
-  if(!tctx){ requestAnimationFrame(drawTrail); return; }
-  tctx.clearRect(0,0, trailCanvas.width, trailCanvas.height);
-  const now = Date.now();
-  for(let i=0;i<trailPoints.length-1;i++){
-    const a = trailPoints[i], b = trailPoints[i+1];
-    const age = now - a.t;
-    const alpha = Math.max(0, 1 - age / TRAIL_LIFE);
-    tctx.strokeStyle = `rgba(255,255,255,${0.18 * alpha})`;
-    tctx.lineWidth = 10 * alpha + 2;
-    tctx.lineCap = 'round';
-    tctx.beginPath();
-    tctx.moveTo(a.x, a.y);
-    tctx.lineTo(b.x, b.y);
-    tctx.stroke();
-  }
-  while(trailPoints.length && now - trailPoints[0].t > TRAIL_LIFE) trailPoints.shift();
-  requestAnimationFrame(drawTrail);
-}
-requestAnimationFrame(drawTrail);
-
-function addPointer(clientX, clientY){
-  const now = Date.now();
-  if(now - lastPointerTime < POINTER_THROTTLE_MS) return; // throttle
-  lastPointerTime = now;
-  points.push({x: clientX, y: clientY});
-  if(points.length > MAX_POINTS) points.shift();
-  addTrailPoint(clientX, clientY);
-  if(points.length >= 2){
-    const p1 = points[points.length - 2], p2 = points[points.length - 1];
-    // check intersection against each active element's rect
-    const snapshot = Array.from(active);
-    for(const f of snapshot){
-      const r = f.el.getBoundingClientRect();
-      if(lineIntersectsRect(p1, p2, r)) {
-        splitFruit(f.el);
-      }
-    }
-  }
-}
-
-function onPointerDown(e){ isDown = true; points = []; addPointer(e.clientX, e.clientY); e.preventDefault && e.preventDefault(); }
-function onPointerMove(e){ if(!isDown) return; addPointer(e.clientX, e.clientY); e.preventDefault && e.preventDefault(); }
-function onPointerUp(e){ isDown = false; points = []; }
-
-window.addEventListener('pointerdown', onPointerDown, {passive:false});
-window.addEventListener('pointermove', onPointerMove, {passive:false});
-window.addEventListener('pointerup', onPointerUp);
-window.addEventListener('pointercancel', onPointerUp);
-
-/* ---------- split behavior ---------- */
-function splitFruit(el){
-  if(!el) return;
-  const type = el.dataset.type;
-  if(type === BOMB){
-    lives = Math.max(0, lives - 1);
-    playBombSound();
-    if(lives <= 0) endGame();
-  } else {
-    score += 10;
-    coins += 2;
-    playSliceSound();
-  }
-  updateHUD();
-  // remove DOM and active list
-  if(el.parentNode) el.parentNode.removeChild(el);
-  for(let i=active.length-1;i>=0;i--) if(active[i].el === el) active.splice(i,1);
-}
-
-/* ---------- controls & UI ---------- */
-function updateHUD(){
-  document.getElementById('score').textContent = score;
-  document.getElementById('lives').textContent = lives;
-  document.getElementById('coins').textContent = coins;
-  document.getElementById('level').textContent = level;
-  const comboEl = document.getElementById('combo');
-  if(comboEl) comboEl.textContent = 'x1';
-  statusText.textContent = running ? 'Running: YES' : 'Running: NO';
-}
-
-function startGame(){
-  if(running) return;
-  running = true;
-  document.getElementById('bigStart').style.display = 'none';
-  if(spawnTimer) clearInterval(spawnTimer);
-  spawnTimer = setInterval(()=> spawnFruit(), Math.max(800, SPAWN_INTERVAL - level * 20));
-  spawnFruit();
-  updateHUD();
-}
-
-function pauseGame(){
-  running = !running;
-  if(!running && spawnTimer){ clearInterval(spawnTimer); spawnTimer = null; }
-  if(running && !spawnTimer){ spawnTimer = setInterval(()=> spawnFruit(), Math.max(800, SPAWN_INTERVAL - level * 20)); }
-  updateHUD();
-}
-
-function restartGame(){
-  // remove all active DOM nodes
-  for(const f of Array.from(active)){ if(f.el.parentNode) f.el.parentNode.removeChild(f.el); }
-  active.length = 0;
-  score = 0; lives = 3; coins = 0; level = 1; running = false;
-  document.getElementById('bigStart').style.display = 'block';
-  if(spawnTimer){ clearInterval(spawnTimer); spawnTimer = null; }
-  updateHUD();
-}
-
-function endGame(){
-  running = false;
-  if(spawnTimer){ clearInterval(spawnTimer); spawnTimer = null; }
-  alert('Game Over! Score: ' + score);
-  restartGame();
-}
-
-/* ---------- audio (light) ---------- */
-const AudioCtx = window.AudioContext || window.webkitAudioContext;
-const audio = AudioCtx ? new AudioCtx() : null;
-function playTone(freq, type='sine', dur=0.06, vol=0.07){
-  if(!audio) return;
-  try{
-    const now = audio.currentTime;
-    const o = audio.createOscillator();
-    const g = audio.createGain();
-    o.type = type;
-    o.frequency.setValueAtTime(freq, now);
-    g.gain.setValueAtTime(vol, now);
-    g.gain.exponentialRampToValueAtTime(0.0001, now + dur);
-    o.connect(g); g.connect(audio.destination);
-    o.start(now); o.stop(now + dur + 0.02);
-  }catch(e){}
-}
-function playSliceSound(){ playTone(rand(520,760),'sine',0.05,0.06); }
-function playBombSound(){ playTone(120,'sawtooth',0.12,0.14); setTimeout(()=>playTone(80,'sine',0.09,0.06),60); }
-
-/* ---------- utils ---------- */
-function rand(a,b){ return Math.random()*(b-a)+a; }
-function lineIntersectsRect(p1,p2,rect){
-  if((p1.x < rect.left && p2.x < rect.left) || (p1.x > rect.right && p2.x > rect.right) || (p1.y < rect.top && p2.y < rect.top) || (p1.y > rect.bottom && p2.y > rect.bottom)) return false;
-  return true;
-}
-
-/* ---------- small loader helper used by fallback ---------- */
-function loadImageFromPaths(filename){
-  return new Promise(async (resolve, reject)=>{
-    for(const base of IMG_PATHS){
-      try {
-        const img = new Image();
-        await new Promise((res, rej)=>{ img.onload = res; img.onerror = rej; img.src = base + filename; });
-        resolve(img);
-        return;
-      } catch(e){}
-    }
-    try {
-      const img = new Image();
-      await new Promise((res, rej)=>{ img.onload = res; img.onerror = rej; img.src = filename; });
-      resolve(img);
-    } catch(e){
-      reject();
-    }
-  });
-}
-
-/* ---------- initialization: preload + start loop ---------- */
-(async function init(){
-  // preload images
-  await preloadAll(); // fills IMAGE_CACHE
-  // console debug:
-  console.log('Preload complete, items:', Object.keys(IMAGE_CACHE));
-
-  // recalc area and start animation loop
-  recalcAreaSize();
-  requestAnimationFrame(loop);
-
-  // wire UI buttons
-  document.getElementById('startBtn').addEventListener('click', startGame);
-  document.getElementById('pauseBtn').addEventListener('click', pauseGame);
-  document.getElementById('restartBtn').addEventListener('click', restartGame);
-  document.getElementById('bigStart').addEventListener('click', startGame);
-
-  // show HUD
-  updateHUD();
-})();
+  <script src="js/game.js"></script>
+</body>
+</html>
