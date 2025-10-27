@@ -3,207 +3,92 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Full Update (Sprites, Juice, Sound, Shop)</title>
+<title>Fruit Cut — Use images from images/ folder</title>
 <style>
-  :root{ --btn:#111; --btnHover:#333; --accent:#22c55e; --ui:#f1f5f9; }
-  body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,Helvetica;margin:12px;background:#f4f7fb;color:#111}
+  body{font-family:Arial,Helvetica,sans-serif;margin:12px;background:#f4f7fb;color:#111}
   .container{max-width:980px;margin:0 auto}
-  h1{margin:6px 0 10px}
+  h1{margin:6px 0}
   .hud{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
-  .stat{background:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.04);display:flex;align-items:center}
-  #gameWrapper{position:relative;height:520px;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,0.06);background-color:#e9e6e1;background-size:cover;background-position:center center;background-repeat:no-repeat;}
+  .stat{background:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.04)}
+  #gameWrapper{position:relative;height:520px;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,0.06);background:#e9e6e1;background-size:cover}
   #gameArea{position:absolute;inset:0;touch-action:none}
-  canvas#bladeCanvas{position:absolute;inset:0;z-index:900;pointer-events:none}
-  canvas#particleCanvas{position:absolute;inset:0;z-index:850;pointer-events:none}
-  .fruit{position:absolute;font-size:46px;line-height:1;user-select:none;pointer-events:none;z-index:600;will-change:transform,opacity}
-  img.piece{position:absolute;width:64px;height:64px;user-select:none;pointer-events:none;z-index:700;will-change:transform,opacity;transform:translate(-50%,-50%);}
+  canvas#bladeCanvas, canvas#particleCanvas { position:absolute; inset:0; z-index:900; pointer-events:none; }
+  .fruit{position:absolute;font-size:46px;line-height:1;user-select:none;pointer-events:none;z-index:600}
+  img.half { position:absolute; width:96px; height:96px; object-fit:contain; transform:translate(-50%,-50%); z-index:700; pointer-events:none; }
   .controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
-  button{padding:8px 12px;border-radius:8px;border:0;background:var(--btn);color:#fff;cursor:pointer;font-weight:600;box-shadow:0 6px 12px rgba(2,6,23,0.06)}
-  button.ghost{background:#fff;color:#111;border:1px solid #e6e6e6;box-shadow:none;padding:8px 12px;border-radius:8px}
-  .scorePop{position:absolute;right:12px;top:12px;background:#fff;padding:6px 10px;border-radius:8px;display:none;z-index:1100;box-shadow:0 10px 30px rgba(2,6,23,0.08)}
-  .modal{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:1200;transition:opacity .16s}
-  .modal.hidden{opacity:0;pointer-events:none}
-  .card{background:#fff;padding:14px;border-radius:10px;box-shadow:0 12px 36px rgba(2,6,23,0.12);min-width:300px;max-width:92%}
-  .shop-grid{display:grid;grid-template-columns:1fr;gap:8px;margin-top:8px}
-  .shop-item{display:flex;justify-content:space-between;align-items:center;padding:8px;border-radius:8px;background:#f8fafc}
-  .thumb{width:88px;height:56px;border-radius:6px;object-fit:cover;margin-right:10px}
-  .locked-badge{background:#111;color:#fff;padding:4px 6px;border-radius:6px;font-size:12px}
-  .cost-badge{background:#fff;border:1px solid #eee;padding:4px 6px;border-radius:6px;font-weight:700}
-  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:rgba(0,0,0,0.8);color:#fff;padding:8px 14px;border-radius:999px;z-index:1600;display:none}
-  #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10050;background:rgba(0,0,0,0.85);color:#fff;padding:18px 28px;border-radius:12px;font-size:20px;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,0.25);pointer-events:auto}
-  #startStatus{position:absolute;left:12px;top:12px;z-index:10060;background:rgba(255,255,255,0.95);padding:8px;border-radius:8px;box-shadow:0 10px 30px rgba(0,0,0,0.06)}
-  .hud-bottom{margin-top:10px;color:#666}
-  @media (max-width:700px){ #gameWrapper{height:420px} .fruit{font-size:36px} .thumb{width:72px;height:48px} #bigStart{font-size:18px;padding:14px 22px} img.piece{width:48px;height:48px} }
-  *{-webkit-tap-highlight-color:transparent!important;user-select:none!important}
+  button{padding:8px 12px;border-radius:8px;border:0;background:#111;color:#fff;cursor:pointer}
+  .ghost{background:#fff;color:#111;border:1px solid #e6e6e6;box-shadow:none;padding:8px 12px;border-radius:8px}
+  #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10050;background:#111;color:#fff;padding:16px 22px;border-radius:10px;cursor:pointer}
+  #startStatus{position:absolute;left:12px;top:12px;z-index:10060;background:rgba(255,255,255,0.95);padding:8px;border-radius:8px}
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🍉 Fruit Cut — Full Update</h1>
-
+  <h1>🍉 Fruit Cut — images/ folder demo</h1>
   <div class="hud">
     <div class="stat">Score: <strong id="scoreEl">0</strong></div>
     <div class="stat">Lives: <strong id="livesEl">3</strong></div>
     <div class="stat">Coins: <strong id="coinsEl">120</strong></div>
-    <div style="flex:1"></div>
-    <div class="stat">Level: <strong id="levelEl">1</strong></div>
   </div>
 
   <div id="gameWrapper">
-    <div id="gameArea" aria-label="Game area — swipe to cut fruits"></div>
+    <div id="gameArea" aria-label="Game area"></div>
     <canvas id="particleCanvas"></canvas>
     <canvas id="bladeCanvas"></canvas>
-    <div class="scorePop" id="coinPop">+0</div>
-
-    <div id="modal" class="modal hidden" aria-hidden="true">
-      <div id="shopCard" class="card" style="display:none">
-        <h3 style="margin:0 0 8px">Shop — Backgrounds, Blade & Sprites</h3>
-        <div id="shopList" class="shop-grid"></div>
-        <div style="display:flex;gap:8px;justify-content:center;margin-top:10px">
-          <button id="shopClose" class="ghost">Close</button>
-        </div>
-      </div>
-    </div>
-
     <div id="startStatus">Running: <span id="stRun">NO</span></div>
     <div id="bigStart">START</div>
   </div>
 
-  <div class="controls" style="margin-top:12px">
+  <div class="controls">
     <button id="startBtn" class="ghost">Start</button>
     <button id="pauseBtn" class="ghost" disabled>Pause</button>
     <button id="restartBtn" class="ghost">Restart</button>
-    <button id="shopBtn" class="ghost">Shop</button>
   </div>
-
-  <p class="hud-bottom">Tip: Slice fruits by swiping. Use Shop to buy backgrounds, blade skins and fruit sprites.</p>
+  <p style="color:#666;margin-top:12px">Put your PNGs in an <strong>images/</strong> folder next to this HTML (apple.png, orange.png, strawberry.png, banana.png, watermelon.png, combo.png, bomb.png)</p>
 </div>
 
-<div class="toast" id="toast"></div>
-
 <script>
-/* Full featured single-file game:
-   - Sprite halves (replace FRUIT_SPRITES urls with real PNGs if you have)
-   - Juice particle effect on split
-   - WebAudio synthesized sounds (slice/combo/bomb)
-   - Shop with backgrounds, blade skins, fruit sprite packs; buy/use saved in localStorage
-   - Auto-start fallback
-*/
 (function(){
   // DOM
-  const gameWrapper = document.getElementById('gameWrapper');
   const gameArea = document.getElementById('gameArea');
-  const particleCanvas = document.getElementById('particleCanvas');
-  const bladeCanvas = document.getElementById('bladeCanvas');
-  const scoreEl = document.getElementById('scoreEl');
-  const livesEl = document.getElementById('livesEl');
-  const coinsEl = document.getElementById('coinsEl');
-  const levelEl = document.getElementById('levelEl');
-  const coinPop = document.getElementById('coinPop');
-  const modal = document.getElementById('modal');
-  const shopCard = document.getElementById('shopCard');
-  const shopList = document.getElementById('shopList');
   const startBtn = document.getElementById('startBtn');
   const pauseBtn = document.getElementById('pauseBtn');
   const restartBtn = document.getElementById('restartBtn');
-  const shopBtn = document.getElementById('shopBtn');
-  const shopClose = document.getElementById('shopClose');
   const bigStart = document.getElementById('bigStart');
   const stRun = document.getElementById('stRun');
-  const toast = document.getElementById('toast');
+  const scoreEl = document.getElementById('scoreEl');
+  const livesEl = document.getElementById('livesEl');
+  const coinsEl = document.getElementById('coinsEl');
 
-  // state
-  let score = 0, lives = 3, coins = 120, level = 1;
-  let running = false, spawnTimerId = null, spawnInterval = 900;
-  let fruits = new Set(), bestScore = 0;
-  let unlocked = [], currentBg = 'wood', currentBlade = 'default', currentSpritePack = 'default';
+  const particleCanvas = document.getElementById('particleCanvas');
+  const bladeCanvas = document.getElementById('bladeCanvas');
+  const pctx = particleCanvas.getContext('2d');
+  const bctx = bladeCanvas.getContext('2d');
 
-  // load save
-  try {
-    const s = JSON.parse(localStorage.getItem('fruitcut_state') || '{}');
-    if (s) {
-      if (typeof s.coins === 'number') coins = s.coins;
-      if (typeof s.bestScore === 'number') bestScore = s.bestScore;
-      if (Array.isArray(s.unlocked)) unlocked = s.unlocked;
-      if (s.currentBg) currentBg = s.currentBg;
-      if (s.currentBlade) currentBlade = s.currentBlade;
-      if (s.currentSpritePack) currentSpritePack = s.currentSpritePack;
-    }
-  } catch(e){ unlocked = []; }
-  if (!Array.isArray(unlocked)) unlocked = [];
-  if (!unlocked.includes('wood')) unlocked.unshift('wood');
+  let score=0, lives=3, coins=120;
+  let running=false, spawnTimer=null, spawnInterval=900;
+  const fruits = new Set();
 
-  // helpers
-  const rand = (a,b)=>Math.random()*(b-a)+a;
-  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
-  function saveState(){ try{ localStorage.setItem('fruitcut_state', JSON.stringify({coins,bestScore,unlocked,currentBg,currentBlade,currentSpritePack})); }catch(e){} }
-
-  // embedded sprite placeholders (SVG data URIs). Replace with your PNG URLs if available.
-  function halfSVG(color, side='left', size=128){
-    const clip = side==='left' ? `<clipPath id="c"><rect x="0" y="0" width="${size/2}" height="${size}"/></clipPath>` : `<clipPath id="c"><rect x="${size/2}" y="0" width="${size/2}" height="${size}"/></clipPath>`;
-    const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' viewBox='0 0 ${size} ${size}'>${clip}<g clip-path="url(#c)"><circle cx="${size/2}" cy="${size/2}" r="${size*0.38}" fill="${color}" /><circle cx="${size/2}" cy="${size/2}" r="${size*0.38}" fill="none" stroke="#8b5e34" stroke-width="${size*0.03}" opacity="0.6"/></g></svg>`;
-    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
-  }
-
-  // default sprite pack mapping (can be replaced with PNG URLs)
-  const FRUIT_SPRITES = {
-    default: {
-      apple:  { left: halfSVG('#ff5a5a','left'),  right: halfSVG('#ff5a5a','right') },
-      orange: { left: halfSVG('#ffb03b','left'),  right: halfSVG('#ffb03b','right') },
-      strawberry: { left: halfSVG('#ff5f87','left'), right: halfSVG('#ff5f87','right') },
-      watermelon: { left: halfSVG('#3ad08a','left'), right: halfSVG('#3ad08a','right') },
-      banana: { left: halfSVG('#ffe066','left'), right: halfSVG('#ffe066','right') },
-      combo: { left: halfSVG('#f59e0b','left'), right: halfSVG('#f59e0b','right') },
-      bomb: { left: halfSVG('#444444','left'), right: halfSVG('#444444','right') }
-    }
-    // You can add more packs here, e.g. 'realistic': { apple: {left: 'data:...', right:'...'}, ... }
+  // IMAGE PATHS (relative to HTML file) — these files must exist in ./images/
+  // If you have different filenames, change them here.
+  const IMG_PATH = 'images/';
+  const IMAGE_FILES = {
+    apple: IMG_PATH + 'apple.png',
+    orange: IMG_PATH + 'orange.png',
+    strawberry: IMG_PATH + 'strawberry.png',
+    watermelon: IMG_PATH + 'watermelon.png',
+    banana: IMG_PATH + 'banana.png',
+    combo: IMG_PATH + 'combo.png',
+    bomb: IMG_PATH + 'bomb.png'
   };
 
-  // backgrounds & shop items
-  const BG_WOOD = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900"><rect width="100%" height="100%" fill="#e7d6bf"/></svg>')}`;
-  const BG_LAKE = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900"><rect width="100%" height="100%" fill="#bfe7ff"/></svg>')}`;
-  const BG_MOUNTAIN = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900"><rect width="100%" height="100%" fill="#eef5ff"/></svg>')}`;
+  // Utility
+  const rand = (a,b)=>Math.random()*(b-a)+a;
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  function updateHUD(){ scoreEl.textContent=score; livesEl.textContent=lives; coinsEl.textContent=coins; stRun.textContent = running ? 'YES' : 'NO'; }
 
-  const BACKGROUNDS = [
-    {id:'wood', name:'Wood Texture', thumb:BG_WOOD, url:BG_WOOD, cost:0},
-    {id:'lake', name:'Lake View', thumb:BG_LAKE, url:BG_LAKE, cost:100},
-    {id:'mountain', name:'Mountain View', thumb:BG_MOUNTAIN, url:BG_MOUNTAIN, cost:150}
-  ];
-
-  // blade skins (colors)
-  const BLADES = [
-    {id:'default', name:'Green Trail', color:'#22c55e', cost:0},
-    {id:'pink', name:'Pink Trail', color:'#f43f5e', cost:80},
-    {id:'blue', name:'Blue Trail', color:'#3b82f6', cost:100}
-  ];
-
-  // sprite packs in shop (if you later add PNG packs, map them here)
-  const SPRITE_PACKS = [
-    {id:'default', name:'Default Sprites', cost:0, desc:'Built-in placeholder sprites'},
-    // Example how to add a real sprite pack (replace URLs with your PNG data URIs):
-    // {id:'real', name:'Real Fruit Pack', cost:200, desc:'Photorealistic halves', mapping: { apple:{left:'https://...',right:'https://...'}, ... } }
-  ];
-
-  // apply background
-  function applyBackground(id){
-    const bg = BACKGROUNDS.find(b=>b.id===id);
-    if (!bg) return;
-    gameWrapper.style.backgroundImage = `url("${bg.url}")`;
-    currentBg = id;
-    saveState();
-  }
-
-  // blade trail color getter
-  function bladeColorFor(id){
-    const s = BLADES.find(b=>b.id===id);
-    return s ? s.color : '#22c55e';
-  }
-
-  // HUD
-  function updateHUD(){ scoreEl.textContent = score; livesEl.textContent = lives; coinsEl.textContent = coins; levelEl.textContent = level; stRun.textContent = running ? 'YES' : 'NO'; }
-
-  // game spawn & physics
-  const FRUITS = [
+  // spawn fruit (emoji used for placeholder, we will use PNG only on split)
+  const FRUIT_LIST = [
     {type:'apple', emoji:'🍎', score:10},
     {type:'orange', emoji:'🍊', score:12},
     {type:'strawberry', emoji:'🍓', score:14},
@@ -213,21 +98,20 @@
     {type:'bomb', emoji:'💣', score:0, bomb:true}
   ];
 
-  function spawnFruit(specOverride, xOverride){
-    const spec = specOverride || FRUITS[Math.floor(Math.random()*FRUITS.length)];
+  function spawnFruit(spec, xOverride){
+    const s = spec || FRUIT_LIST[Math.floor(Math.random()*FRUIT_LIST.length)];
     const el = document.createElement('div');
     el.className = 'fruit';
-    el.textContent = spec.emoji;
-    el.dataset.type = spec.type;
-    el.dataset.score = String(spec.score || 0);
-
+    el.textContent = s.emoji;
+    el.dataset.type = s.type;
+    el.dataset.score = s.score || 0;
     const ar = gameArea.getBoundingClientRect();
-    const startX = (typeof xOverride === 'number') ? xOverride : rand(30, Math.max(80, ar.width - 80));
+    const startX = (typeof xOverride === 'number') ? xOverride : rand(40, Math.max(120, ar.width - 80));
     el.style.left = startX + 'px';
     el.style.bottom = '-100px';
     gameArea.appendChild(el);
     fruits.add(el);
-    el._phys = { x: startX, y: -100, vx: rand(-3,3), vy: rand(10,14), rot: rand(-25,25) };
+    el._phys = { x:startX, y:-100, vx: rand(-3,3), vy: rand(10,14), rot:rand(-30,30) };
 
     function frame(){
       if (!fruits.has(el)) return;
@@ -235,15 +119,12 @@
       p.vy -= 0.28;
       p.x += p.vx;
       p.y += p.vy;
-      p.rot += p.vx * 1.2;
+      p.rot += p.vx*1.2;
       el.style.left = p.x + 'px';
       el.style.bottom = p.y + 'px';
       el.style.transform = `rotate(${p.rot}deg)`;
-      const areaRect = gameArea.getBoundingClientRect();
-      if (p.y < -240 || p.x < -240 || p.x > areaRect.width + 240){
-        removeFruit(el);
-        return;
-      }
+      const rect = gameArea.getBoundingClientRect();
+      if (p.y < -220 || p.x < -220 || p.x > rect.width + 220) { removeFruit(el); return; }
       el._raf = requestAnimationFrame(frame);
     }
     el._raf = requestAnimationFrame(frame);
@@ -256,101 +137,50 @@
     fruits.delete(el);
   }
 
-  // particles (juice)
-  const pctx = particleCanvas.getContext('2d');
-  let particles = [];
-  function resizeParticleCanvas(){ const r = gameArea.getBoundingClientRect(); particleCanvas.width = Math.max(1, Math.floor(r.width)); particleCanvas.height = Math.max(1, Math.floor(r.height)); }
-  window.addEventListener('resize', resizeParticleCanvas); setTimeout(resizeParticleCanvas, 60);
-
-  function spawnParticles(x, y, color, count=10){
-    for(let i=0;i<count;i++){
-      particles.push({
-        x, y,
-        vx: rand(-4,4),
-        vy: rand(-6,-1),
-        r: rand(2,6),
-        life: rand(40,80),
-        t: Date.now(),
-        color
-      });
-    }
-  }
-  function drawParticles(){
-    pctx.clearRect(0,0,particleCanvas.width, particleCanvas.height);
-    const now = Date.now();
-    particles = particles.filter(pt => (now - pt.t) < pt.life);
-    for(const pt of particles){
-      const age = (now - pt.t)/pt.life;
-      pt.x += pt.vx * (1 - 0.08*age);
-      pt.y += pt.vy * (1 + 0.8*age);
-      pt.vy += 0.14; // gravity for particles
-      const alpha = Math.max(0, 1 - age);
-      pctx.fillStyle = hexToRgba(pt.color, alpha);
-      pctx.beginPath();
-      pctx.arc(pt.x, pt.y, pt.r*(1-age*0.6), 0, Math.PI*2);
-      pctx.fill();
-    }
-    requestAnimationFrame(drawParticles);
-  }
-  drawParticles();
-
-  function hexToRgba(hex, a){
-    const c = hex.replace('#','');
-    const bigint = parseInt(c,16);
-    const r = (bigint >> 16) & 255;
-    const g = (bigint >> 8) & 255;
-    const b = bigint & 255;
-    return `rgba(${r},${g},${b},${a})`;
-  }
-
-  // split to sprites (img pieces) + juice + sound
-  function splitFruit(el){
-    if(!el) return;
+  // split into two halves using same PNG and clip-path
+  function splitFruitToHalves(el){
+    if (!el) return;
     const rect = el.getBoundingClientRect();
     const parentRect = gameArea.getBoundingClientRect();
     const cx = rect.left + rect.width/2;
     const cy = rect.top + rect.height/2;
     const type = el.dataset.type || 'apple';
 
-    // remove physics loop
     if (el._raf) cancelAnimationFrame(el._raf);
     try{ el.remove(); }catch(e){}
     fruits.delete(el);
 
-    // sprite mapping: use currentSpritePack
-    const pack = FRUIT_SPRITES[currentSpritePack] || FRUIT_SPRITES['default'];
-    const pair = pack[type] || pack['apple'];
-
-    // create left and right img elements
+    // create two img halves
     const left = document.createElement('img');
     const right = document.createElement('img');
-    left.className = 'piece'; right.className = 'piece';
-    left.src = pair.left; right.src = pair.right;
+    left.className = 'half'; right.className = 'half';
+    // use image files from images/ folder
+    const src = IMAGE_FILES[type] || IMAGE_FILES['apple'];
+    left.src = src; right.src = src;
+
+    // size & position
+    const size = Math.max(48, Math.min(120, rect.width*1.2));
+    left.style.width = right.style.width = size + 'px';
+    left.style.height = right.style.height = size + 'px';
+
     const startX = cx - parentRect.left;
     const startY = cy - parentRect.top;
     left.style.left = startX + 'px'; left.style.top = startY + 'px';
     right.style.left = startX + 'px'; right.style.top = startY + 'px';
+
+    // clip to left and right halves using clip-path (works offline)
+    left.style.clipPath = 'inset(0 50% 0 0)';   // show left half
+    right.style.clipPath = 'inset(0 0 0 50%)';  // show right half
+
     gameArea.appendChild(left); gameArea.appendChild(right);
 
-    // set size proportional
-    const size = Math.max(40, Math.min(96, rect.width*0.9));
-    left.style.width = size + 'px'; left.style.height = size + 'px';
-    right.style.width = size + 'px'; right.style.height = size + 'px';
+    // spawn some juice particles (tiny circles)
+    spawnParticles(startX, startY, '#ff6b6b', 12);
 
-    // particles color mapping per fruit
-    const colorMap = {
-      apple: '#ff5a5a', orange: '#ffb03b', strawberry: '#ff5f87', watermelon: '#3ad08a', banana:'#ffe066',
-      combo:'#f59e0b', bomb:'#444444'
-    };
-    spawnParticles(startX, startY, colorMap[type] || '#ff5a5a', 12);
-
-    // sound
-    playSliceSound(type);
-
-    // piece physics
-    const dir = Math.random()>0.5 ? 1 : -1;
-    let lt = { x:startX, y:startY, vx: (Math.random()*1.6+1.2)*-dir, vy: rand(6,10), rot: rand(-30,30), a:1 };
-    let rt = { x:startX, y:startY, vx: (Math.random()*1.6+1.2)*dir, vy: rand(6,10), rot: rand(-30,30), a:1 };
+    // animate halves outward and fade
+    const dir = (Math.random()>0.5?1:-1);
+    let lt = { x:startX, y:startY, vx: (Math.random()*1.6+1.2)*-dir, vy: rand(6,10), rot: rand(-25,25), a:1 };
+    let rt = { x:startX, y:startY, vx: (Math.random()*1.6+1.2)*dir,  vy: rand(6,10), rot: rand(-25,25), a:1 };
     const gravity = 0.35, decay = 0.02;
 
     function step(){
@@ -364,60 +194,98 @@
     requestAnimationFrame(step);
   }
 
-  // slice behaviour & scoring
-  function sliceFruit(el){
-    if(!el || !fruits.has(el)) return;
-    const type = el.dataset.type;
-    if (type === 'bomb'){
-      removeFruit(el);
-      // bomb sound and particles
-      playSliceSound('bomb');
-      spawnParticles(window.innerWidth/2, 50, '#444444', 18);
-      lives = clamp(lives - 1, 0, 99);
-      updateHUD(); showPop('-1 life');
-      if (lives <= 0) setTimeout(gameOver, 220);
-      return;
+  // juice particle system (tiny circles drawn on particleCanvas)
+  let particles = [];
+  function resizeParticleCanvas(){
+    const r = gameArea.getBoundingClientRect();
+    particleCanvas.width = Math.max(1, Math.floor(r.width));
+    particleCanvas.height = Math.max(1, Math.floor(r.height));
+    bladeCanvas.width = particleCanvas.width; bladeCanvas.height = particleCanvas.height;
+  }
+  window.addEventListener('resize', resizeParticleCanvas); setTimeout(resizeParticleCanvas, 60);
+
+  function spawnParticles(x,y,color,count=10){
+    for(let i=0;i<count;i++){
+      particles.push({ x, y, vx: rand(-4,4), vy: rand(-6,-1), r: rand(2,6), life: rand(40,90), born: Date.now(), color });
     }
-    if (type === 'combo'){
-      score += 50; coins += 10; updateHUD(); showPop('COMBO! +50'); toastMsg('Combo!');
-      // spawn a bunch of fruits around x
-      const x = el._phys ? el._phys.x : parseFloat(el.style.left) || (gameArea.getBoundingClientRect().width/2);
-      for(let i=0;i<6;i++) setTimeout(()=> spawnFruit(null, clamp(x + rand(-60,60), 20, gameArea.getBoundingClientRect().width-20)), i*60);
-      splitFruit(el); saveState();
-      return;
+  }
+  function drawParticles(){
+    const ctx = pctx; ctx.clearRect(0,0,particleCanvas.width, particleCanvas.height);
+    const now = Date.now();
+    particles = particles.filter(p => now - p.born < p.life);
+    for(const p of particles){
+      const age = (now - p.born)/p.life;
+      p.x += p.vx * (1 - 0.08*age);
+      p.y += p.vy * (1 + 0.8*age);
+      p.vy += 0.18;
+      ctx.fillStyle = rgbaFromHex(p.color, Math.max(0,1-age));
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.r*(1-age*0.6), 0, Math.PI*2);
+      ctx.fill();
     }
-    // normal fruit
-    const s = Number(el.dataset.score) || 10;
-    score += s;
-    coins += Math.floor(s/10);
-    updateHUD();
-    showPop('+' + s);
-    splitFruit(el);
-    saveState();
+    requestAnimationFrame(drawParticles);
+  }
+  drawParticles();
+
+  function rgbaFromHex(hex, a){
+    const c = hex.replace('#','');
+    const n = parseInt(c,16);
+    const r = (n>>16)&255, g=(n>>8)&255, b=n&255;
+    return `rgba(${r},${g},${b},${a})`;
   }
 
-  function showPop(text){
-    coinPop.textContent = text;
-    coinPop.style.display = 'block';
-    coinPop.style.opacity = '1';
-    setTimeout(()=> { coinPop.style.transition = 'transform .5s, opacity .5s'; coinPop.style.transform = 'translateY(-18px)'; coinPop.style.opacity = '0'; }, 40);
-    setTimeout(()=> { coinPop.style.display = 'none'; coinPop.style.transform = ''; coinPop.style.transition = ''; }, 700);
-  }
-
-  // swipe detection & blade trail drawing
+  // slicing detection (line vs rect)
   let isDown=false, points=[];
-  const bctx = bladeCanvas.getContext('2d');
-  let bladePoints = [], MAX_BLADE = 24;
-  function addBladePoint(x,y){
-    const r = gameArea.getBoundingClientRect();
-    bladePoints.push({x:x-r.left, y:y-r.top, t:Date.now()});
-    if (bladePoints.length > MAX_BLADE) bladePoints.shift();
-  }
-  function drawBlade(){
-    // resize canvas as needed
-    const r = gameArea.getBoundingClientRect();
-    if (bladeCanvas.width !== Math.floor(r.width) || bladeCanvas.height !== Math.floor(r.height)){
-      bladeCanvas.width = Math.max(1, Math.floor(r.width));
-      bladeCanvas.height = Math.max(1, Math.floor(r.height));
+  function addPoint(x,y){
+    points.push({x,y,ts:Date.now()});
+    if (points.length>18) points.shift();
+    if (points.length>=2){
+      const p1 = points[points.length-2], p2 = points[points.length-1];
+      for(const f of Array.from(fruits)){
+        const r = f.getBoundingClientRect();
+        if (lineIntersectsRect(p1,p2,r)) {
+          // slice
+          const type = f.dataset.type;
+          if (type==='bomb'){ removeFruit(f); lives = Math.max(0, lives-1); updateHUD(); if (lives<=0) { pauseGame(); alert('Game Over'); } }
+          else { score += Number(f.dataset.score) || 10; coins += Math.floor((Number(f.dataset.score)||10)/10); splitFruitToHalves(f); updateHUD(); }
+        }
+      }
     }
-    bctx.clearRec
+  }
+  function onPointerDown(e){ isDown=true; points=[]; addPoint(e.clientX,e.clientY); }
+  function onPointerMove(e){ if(!isDown) return; addPoint(e.clientX,e.clientY); }
+  function onPointerUp(e){ isDown=false; points=[]; }
+  function lineIntersectsRect(p1,p2,rect){
+    if ((p1.x < rect.left && p2.x < rect.left) || (p1.x > rect.right && p2.x > rect.right) ||
+        (p1.y < rect.top && p2.y < rect.top) || (p1.y > rect.bottom && p2.y > rect.bottom)) return false;
+    return true;
+  }
+  window.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerUp);
+
+  // game controls
+  function startGame(){
+    if (running) return;
+    running = true; updateHUD(); startBtn.disabled = true; pauseBtn.disabled = false; bigStart.style.display='none';
+    if (spawnTimer) clearInterval(spawnTimer);
+    spawnTimer = setInterval(()=> spawnFruit(), spawnInterval);
+    spawnFruit();
+  }
+  function pauseGame(){ if (!running) return; running=false; startBtn.disabled=false; pauseBtn.disabled=true; if (spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } updateHUD(); }
+  function restartGame(){ for(const f of Array.from(fruits)) removeFruit(f); score=0; lives=3; coins=120; updateHUD(); pauseGame(); startGame(); }
+  startBtn.addEventListener('click', startGame);
+  pauseBtn.addEventListener('click', pauseGame);
+  restartBtn.addEventListener('click', restartGame);
+  bigStart.addEventListener('click', startGame);
+
+  // auto-start fallback (attempt)
+  window.addEventListener('load', ()=> setTimeout(()=> { try { startGame(); } catch(e){} }, 300) );
+
+  updateHUD();
+
+})();
+</script>
+</body>
+      </html>
