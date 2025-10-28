@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Final (Clean)</title>
+<title>Fruit Cut — Smooth + Transparent Fruits</title>
 <style>
   :root{ --btn:#111; --btnHover:#333; --accent:#22c55e; }
   body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,Helvetica;margin:12px;background:#f4f7fb;color:#111}
@@ -17,7 +17,30 @@
   }
   #gameArea{position:absolute;inset:0;touch-action:none}
   canvas#bladeCanvas{position:absolute;inset:0;z-index:900;pointer-events:none}
-  .fruit{position:absolute;font-size:46px;line-height:1;user-select:none;pointer-events:none;z-index:600}
+  /* wrapper is circular to hide image square background */
+  .fruit{
+    position:absolute;
+    width: 120px; height:120px; /* overridden in JS per screen */
+    border-radius:999px;
+    overflow:hidden;
+    display:block;
+    transform-origin:center center;
+    z-index:600;
+    box-shadow:0 12px 26px rgba(2,6,23,0.08);
+    will-change: transform;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+  }
+  img.fruit-img{
+    display:block;
+    width:100%;
+    height:100%;
+    object-fit:cover; /* crop to circular wrapper */
+    pointer-events:none;
+    background:transparent;
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
+  }
   .controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
   button{padding:8px 12px;border-radius:8px;border:0;background:var(--btn);color:#fff;cursor:pointer;font-weight:600;box-shadow:0 6px 12px rgba(2,6,23,0.06)}
   button:hover{background:var(--btnHover)}
@@ -29,14 +52,13 @@
   .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:rgba(0,0,0,0.8);color:#fff;padding:8px 14px;border-radius:999px;z-index:1600;display:none}
   #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:200;background:rgba(0,0,0,0.85);color:#fff;padding:18px 28px;border-radius:12px;font-size:20px;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,0.25)}
   .debugBox{position:fixed;right:12px;top:12px;z-index:99999;background:rgba(0,0,0,0.8);color:#fff;padding:8px;max-width:38%;font-size:12px;border-radius:8px;line-height:1.25;max-height:60vh;overflow:auto;display:none}
-  @media (max-width:700px){ #gameWrapper{height:420px} .fruit{font-size:36px} #bigStart{font-size:18px;padding:14px 22px} .debugBox{max-width:90%;left:6px;right:6px} }
-  img.fruit-img{display:block;width:100%;height:auto;pointer-events:none}
+  @media (max-width:700px){ #gameWrapper{height:420px} .fruit{width:96px;height:96px} #bigStart{font-size:18px;padding:14px 22px} .debugBox{max-width:90%;left:6px;right:6px} }
   *{-webkit-tap-highlight-color:transparent!important;user-select:none!important}
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🍉 Fruit Cut — Final (Clean)</h1>
+  <h1>🍉 Fruit Cut — Smooth + Transparent</h1>
 
   <div class="hud">
     <div class="stat">Score: <strong id="scoreEl">0</strong></div>
@@ -71,7 +93,7 @@
     <button id="consoleBtn" class="ghost">Console</button>
   </div>
 
-  <p style="color:#666;margin-top:12px">Tip: Slice fruits by swiping. Cut combos — avoid bombs.</p>
+  <p style="color:#666;margin-top:12px">Tip: Slice fruits by swiping. Use transparent PNGs for best result.</p>
 </div>
 
 <div id="debug" class="debugBox"></div>
@@ -82,21 +104,14 @@
 <script>eruda.init();</script>
 
 <script>
-/* Clean single-script game — no duplicate declarations.
-   Put fruit images in ./images/ (names in IMAGES array).
+/* Smooth + transparent-friendly Fruit Cut (single-file).
+   Put PNGs in ./images/ with these names (lowercase):
+   apple.png, banana.png, orange.png, strawberry.png, watermelon.png, mango.png, papaya.png, pineapple.png, pomegranate.png, bomb.png
 */
 
 (function(){
-  // debug helper (shows only on wide screens)
   const DBG = document.getElementById('debug');
-  function debugLog(txt){
-    console.log('[FruitCut]', txt);
-    if(window.innerWidth > 700){
-      DBG.style.display = 'block';
-      const d = document.createElement('div'); d.textContent = txt; DBG.appendChild(d);
-      if(DBG.childElementCount > 60) DBG.removeChild(DBG.firstChild);
-    }
-  }
+  function dlog(m){ console.log('[FruitCut]', m); if(window.innerWidth>700){ DBG.style.display='block'; const el=document.createElement('div'); el.textContent=m; DBG.appendChild(el); if(DBG.childElementCount>80) DBG.removeChild(DBG.firstChild); } }
 
   // DOM refs
   const gameArea = document.getElementById('gameArea');
@@ -115,94 +130,115 @@
   const modal = document.getElementById('modal');
   const gameoverCard = document.getElementById('gameoverCard');
 
-  if(!gameArea){ debugLog('Missing #gameArea — abort'); return; }
-  debugLog('Script loaded');
+  if(!gameArea){ dlog('Missing game area'); return; }
+  dlog('Script loaded');
 
-  // config
+  // Images list
   const IMAGES = ["apple.png","banana.png","orange.png","strawberry.png","watermelon.png","mango.png","papaya.png","pineapple.png","pomegranate.png"];
   const BOMB = "bomb.png";
-  const ALL_IMAGES = IMAGES.concat([BOMB]);
+  const ALL = IMAGES.concat([BOMB]);
 
-  const GRAVITY = 0.28;
-  const SPAWN_BASE = 900;
-  let spawnInterval = SPAWN_BASE;   // declared once
-  const MAX_ACTIVE = 8;
+  // TUNING (performance)
+  const GRAVITY = 0.26;
+  const SPAWN_BASE = 1200;  // slower spawn -> less CPU
+  let spawnInterval = SPAWN_BASE; // declared once
+  const MAX_ACTIVE = 5;     // fewer simultaneous fruits
+  const MAX_BLADE = 12;     // shorter trail
+  const PTR_THROTTLE = 28;  // pointer throttling
 
-  // state
-  let score = 0, lives = 3, coins = 0, level = 1;
-  let running = false, spawnTimer = null;
+  // State
+  let score=0, lives=3, coins=0, level=1;
+  let running=false, spawnTimer=null;
   const active = []; // active fruit objects
   const POOL = [];   // pooled DOM elements
   const CACHE = {};  // preloaded Image objects
 
   // area size
-  let areaW = 480, areaH = 520;
-  function recalcArea(){
+  let areaW=480, areaH=520;
+  function recalc(){
     const r = gameArea.getBoundingClientRect();
     areaW = Math.max(1, Math.floor(r.width)); areaH = Math.max(1, Math.floor(r.height));
     bladeCanvas.width = areaW; bladeCanvas.height = areaH;
-    debugLog('Area size: ' + areaW + 'x' + areaH);
+    dlog('Area: ' + areaW + 'x' + areaH);
   }
-  window.addEventListener('resize', recalcArea);
-  setTimeout(recalcArea, 80);
+  window.addEventListener('resize', recalc);
+  setTimeout(recalc,80);
 
-  // preload images (images/ folder)
+  // Preload + decode images to avoid render delay
   async function preloadAll(){
-    debugLog('Preloading images...');
-    const tasks = ALL_IMAGES.map(name => new Promise(res=>{
+    dlog('Preloading images...');
+    const promises = ALL.map(name => new Promise(resolve => {
       const img = new Image();
-      img.onload = ()=>{ CACHE[name] = img; debugLog('Loaded ' + name); res(true); };
-      img.onerror = ()=>{ debugLog('Failed ' + name); res(false); };
+      img.onload = async () => {
+        try{ if(img.decode) await img.decode(); } catch(e){}
+        CACHE[name] = img;
+        dlog('loaded ' + name);
+        resolve(true);
+      };
+      img.onerror = ()=> { dlog('failed ' + name); resolve(false); };
       img.src = 'images/' + name;
     }));
-    await Promise.all(tasks);
-    debugLog('Preload finished: ' + Object.keys(CACHE).join(', '));
+    await Promise.all(promises);
+    dlog('preload done: ' + Object.keys(CACHE).join(', '));
   }
 
-  // element pooling
+  // Pool factory
   function makeEl(){
     const wrap = document.createElement('div');
     wrap.className = 'fruit';
     wrap.style.position = 'absolute';
-    const img = document.createElement('img');
-    img.className = 'fruit-img';
-    img.draggable = false;
-    wrap.appendChild(img);
+    const i = document.createElement('img');
+    i.className = 'fruit-img';
+    i.draggable = false;
+    wrap.appendChild(i);
     return wrap;
   }
-  function acquireEl(){ return POOL.length ? POOL.pop() : makeEl(); }
-  function releaseEl(el){
-    const img = el.querySelector('img'); if(img) img.src = '';
+  function acquire(){ return POOL.length ? POOL.pop() : makeEl(); }
+  function release(el){
+    const img = el.querySelector('img');
+    if(img) img.src = '';
     if(el.parentNode) el.parentNode.removeChild(el);
     POOL.push(el);
   }
 
-  // spawn function
+  // spawn one fruit
   function spawnOne(typeName){
     if(!running) return;
     if(active.length >= MAX_ACTIVE) return;
     const name = typeName || (Math.random() < 0.92 ? IMAGES[Math.floor(Math.random()*IMAGES.length)] : BOMB);
-    const el = acquireEl();
+    const el = acquire();
     const img = el.querySelector('img');
+
+    // set circular wrapper size (responsive)
+    const size = Math.max(76, Math.min(120, Math.floor(areaW * 0.16)));
+    el.style.width = size + 'px';
+    el.style.height = size + 'px';
+
+    // use cached decoded image if available
     if(CACHE[name]) img.src = CACHE[name].src; else img.src = 'images/' + name;
-    const size = Math.max(80, Math.min(140, Math.floor(areaW * 0.18)));
-    img.style.width = size + 'px'; img.style.height = 'auto';
+
+    img.style.width = '100%';
+    img.style.height = '100%';
+    img.style.objectFit = 'cover';
+
     const sx = Math.floor(Math.random() * Math.max(1, areaW - size - 40)) + 20;
     const sy = -150;
-    el.style.left = sx + 'px'; el.style.bottom = sy + 'px';
+    el.style.left = sx + 'px';
+    el.style.bottom = sy + 'px';
     el.dataset.type = name;
     gameArea.appendChild(el);
-    const vy = 18 + Math.random()*4;
-    const vx = (Math.random()-0.5)*4.0;
+
+    const vy = 16 + Math.random()*4; // slightly softer arc
+    const vx = (Math.random()-0.5)*3.6;
     const rot = (Math.random()-0.5)*40;
     active.push({el, x:sx, y:sy, vx, vy, rot, type:name});
   }
 
-  // main loop (requestAnimationFrame)
-  let lastTime = performance.now();
-  function loop(now){
-    const dt = Math.min(40, now - lastTime) / 16.666;
-    lastTime = now;
+  // main animation loop
+  let last = performance.now();
+  function step(now){
+    const dt = Math.min(40, now-last)/16.666;
+    last = now;
     const floorY = areaH - 36;
     for(let i = active.length - 1; i >= 0; i--){
       const f = active[i];
@@ -211,19 +247,20 @@
       f.y += f.vy * dt;
       f.rot += f.vx * 0.8 * dt;
       if(f.y > floorY){ f.y = floorY; f.vy = -Math.abs(f.vy) * 0.45; }
+      // use translate3d + will-change hint (already in CSS) for smoother GPU-powered animation
       f.el.style.transform = `translate3d(${f.x}px, ${-f.y}px, 0) rotate(${f.rot}deg)`;
       if(f.x < -300 || f.x > areaW + 300 || f.y < -500){
-        releaseEl(f.el);
+        release(f.el);
         active.splice(i,1);
       }
     }
-    requestAnimationFrame(loop);
+    requestAnimationFrame(step);
   }
-  requestAnimationFrame(loop);
+  requestAnimationFrame(step);
 
-  // blade canvas & pointer logic
+  // blade drawing
   const bctx = bladeCanvas.getContext('2d');
-  let bladePoints = []; const MAX_BLADE = 20;
+  let bladePoints = [];
   function addBladePoint(cx, cy){
     const r = gameArea.getBoundingClientRect();
     bladePoints.push({x: cx - r.left, y: cy - r.top, t: Date.now()});
@@ -233,125 +270,94 @@
   function drawBlade(){
     bctx.clearRect(0,0, bladeCanvas.width, bladeCanvas.height);
     if(bladePoints.length < 2) return;
-    bctx.lineJoin = 'round'; bctx.lineCap = 'round';
+    bctx.lineJoin='round'; bctx.lineCap='round';
     for(let i=0;i<bladePoints.length-1;i++){
       const a = bladePoints[i], b = bladePoints[i+1];
       const alpha = Math.max(0, 1 - (Date.now() - a.t)/360);
-      bctx.strokeStyle = `rgba(34,197,94,${0.9 * alpha})`;
-      bctx.lineWidth = 12 * alpha + 2;
+      bctx.strokeStyle = `rgba(34,197,94,${0.9*alpha})`;
+      bctx.lineWidth = 10*alpha + 2;
       bctx.beginPath(); bctx.moveTo(a.x,a.y); bctx.lineTo(b.x,b.y); bctx.stroke();
     }
   }
 
-  function rectIntersectLine(rect, p1, p2){
+  // collision: line vs rect (fast)
+  function lineIntersectsRect(p1,p2,rect){
     if((p1.x < rect.left && p2.x < rect.left) || (p1.x > rect.right && p2.x > rect.right) ||
        (p1.y < rect.top && p2.y < rect.top) || (p1.y > rect.bottom && p2.y > rect.bottom)) return false;
     return true;
   }
 
-  let isDown = false, lastPtr = 0, history = [];
-  const PTR_THROTTLE = 22;
-  function onDown(e){ isDown = true; history = []; addBladePoint(e.clientX, e.clientY); e.preventDefault && e.preventDefault(); }
+  // pointer handling (throttled)
+  let isDown=false, lastPtr=0, history=[];
+  function onDown(e){ isDown=true; history=[]; addBladePoint(e.clientX,e.clientY); e.preventDefault && e.preventDefault(); }
   function onMove(e){
     if(!isDown) return;
     const now = Date.now(); if(now - lastPtr < PTR_THROTTLE) return; lastPtr = now;
-    addBladePoint(e.clientX, e.clientY); history.push({x: e.clientX, y: e.clientY}); if(history.length > 18) history.shift();
-    if(history.length >= 2){
-      const p1 = history[history.length - 2], p2 = history[history.length - 1];
+    addBladePoint(e.clientX,e.clientY);
+    history.push({x:e.clientX,y:e.clientY});
+    if(history.length>18) history.shift();
+    if(history.length>=2){
+      const p1 = history[history.length-2], p2 = history[history.length-1];
       const snap = Array.from(active);
       for(const f of snap){
         const r = f.el.getBoundingClientRect();
-        if(rectIntersectLine(r, p1, p2)) sliceFruit(f);
+        if(lineIntersectsRect(p1,p2,r)) sliceFruit(f);
       }
     }
   }
-  function onUp(){ isDown = false; history = []; bladePoints = []; drawBlade(); }
+  function onUp(){ isDown=false; history=[]; bladePoints=[]; drawBlade(); }
   window.addEventListener('pointerdown', onDown, {passive:false});
   window.addEventListener('pointermove', onMove, {passive:false});
   window.addEventListener('pointerup', onUp);
   window.addEventListener('pointercancel', onUp);
 
-  // slice handling
+  // slice behavior
   function sliceFruit(f){
     if(!f) return;
-    const type = f.type || (f.el && f.el.dataset && f.el.dataset.type);
-    if(type === BOMB){
-      lives = Math.max(0, lives - 1);
-      debugLog('Bomb sliced. lives=' + lives);
+    const t = f.type || (f.el && f.el.dataset && f.el.dataset.type);
+    if(t === BOMB){
+      lives = Math.max(0, lives-1);
+      dlog('Bomb sliced. lives=' + lives);
       if(lives <= 0) endGame();
     } else {
       score += 10; coins += 2;
       coinPop.textContent = '+2'; coinPop.style.display = 'block';
-      setTimeout(()=> coinPop.style.display = 'none', 600);
+      setTimeout(()=> coinPop.style.display='none', 600);
     }
     updateHUD();
-    for(let i = active.length - 1; i >= 0; i--){
-      if(active[i] === f){ releaseEl(active[i].el); active.splice(i,1); break; }
-    }
+    for(let i=active.length-1;i>=0;i--) if(active[i]===f){ release(active[i].el); active.splice(i,1); break; }
   }
 
   // HUD & controls
   function updateHUD(){ scoreEl.textContent = score; livesEl.textContent = lives; coinsEl.textContent = coins; levelEl.textContent = level; pauseBtn.disabled = !running; }
-  function startGame(){
-    if(running) return;
-    running = true; bigStart.style.display = 'none';
-    if(spawnTimer) clearInterval(spawnTimer);
-    spawnTimer = setInterval(()=> spawnOne(), spawnInterval);
-    spawnOne();
-    updateHUD();
-    debugLog('Game started');
-  }
-  function pauseGame(){
-    running = !running;
-    if(!running && spawnTimer){ clearInterval(spawnTimer); spawnTimer = null; }
-    if(running && !spawnTimer) spawnTimer = setInterval(()=> spawnOne(), spawnInterval);
-    updateHUD();
-    debugLog('Pause toggled: ' + running);
-  }
-  function restartGame(){
-    for(const f of Array.from(active)) releaseEl(f.el);
-    active.length = 0;
-    score = 0; lives = 3; coins = 0; level = 1; running = false;
-    if(spawnTimer){ clearInterval(spawnTimer); spawnTimer = null; }
-    bigStart.style.display = 'block';
-    updateHUD();
-    debugLog('Game restarted');
-  }
-  function endGame(){
-    running = false;
-    if(spawnTimer){ clearInterval(spawnTimer); spawnTimer = null; }
-    debugLog('Game over: ' + score);
-    document.getElementById('goScore').textContent = 'Score: ' + score;
-    modal.classList.remove('hidden');
-    gameoverCard.style.display = 'block';
-  }
+  function startGame(){ if(running) return; running=true; bigStart.style.display='none'; if(spawnTimer) clearInterval(spawnTimer); spawnTimer = setInterval(()=> spawnOne(), spawnInterval); spawnOne(); updateHUD(); dlog('Game started'); }
+  function pauseGame(){ running = !running; if(!running && spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } if(running && !spawnTimer) spawnTimer = setInterval(()=> spawnOne(), spawnInterval); updateHUD(); dlog('Pause toggled: ' + running); }
+  function restartGame(){ for(const f of Array.from(active)) release(f.el); active.length=0; score=0; lives=3; coins=0; level=1; running=false; if(spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } bigStart.style.display='block'; updateHUD(); dlog('Game restarted'); }
+  function endGame(){ running=false; if(spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } dlog('Game over: ' + score); document.getElementById('goScore').textContent = 'Score: ' + score; modal.classList.remove('hidden'); gameoverCard.style.display='block'; }
 
-  // event wiring
+  // controls wiring
   startBtn && startBtn.addEventListener('click', startGame);
   pauseBtn && pauseBtn.addEventListener('click', pauseGame);
   restartBtn && restartBtn.addEventListener('click', restartGame);
-  goRestart && goRestart.addEventListener('click', ()=>{ modal.classList.add('hidden'); restartGame(); });
+  goRestart && goRestart.addEventListener('click', ()=> { modal.classList.add('hidden'); restartGame(); });
   bigStart && bigStart.addEventListener('click', startGame);
-  consoleBtn && consoleBtn.addEventListener('click', ()=> { /* open eruda console */ if(window.eruda) eruda.show(); });
+  consoleBtn && consoleBtn.addEventListener('click', ()=> { if(window.eruda) eruda.show(); });
 
-  // warm pool & preload then auto-start
+  // preload & warm, then auto-start
   (async function init(){
     await preloadAll();
     for(let i=0;i<6;i++) POOL.push(makeEl());
-    recalcArea();
-    requestAnimationFrame(loop);
+    recalc();
+    requestAnimationFrame(step);
     updateHUD();
-    // auto-start fallback
-    setTimeout(()=> { if(!running){ debugLog('Auto-start fallback'); startGame(); } }, 300);
+    // fallback auto-start
+    setTimeout(()=> { if(!running){ dlog('Auto-start fallback'); startGame(); } }, 300);
   })();
 
-  // expose debug helpers
+  // expose for debug
   window.fruitcut = { CACHE, active, POOL, startGame, pauseGame, restartGame };
 
-  // small helper factories defined at bottom scope (used above)
-  function makeEl(){ const wrap = document.createElement('div'); wrap.className='fruit'; wrap.style.position='absolute'; const img=document.createElement('img'); img.className='fruit-img'; img.draggable=false; wrap.appendChild(img); return wrap; }
-  async function preloadAll(){ const list = ALL_IMAGES.slice(0); const tasks = list.map(name => new Promise(res=>{ const img = new Image(); img.onload = ()=>{ CACHE[name]=img; debugLog('loaded ' + name); res(true); }; img.onerror = ()=>{ debugLog('failed ' + name); res(false); }; img.src = 'images/' + name; })); await Promise.all(tasks); debugLog('preload done: ' + Object.keys(CACHE).join(', ')); }
 })();
 </script>
 </body>
-                                </html>
+</html>
