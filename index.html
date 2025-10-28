@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Transparent Fruits + Smooth Build</title>
+<title>Fruit Cut — Transparent + Juice + Combo + Save</title>
 <style>
   :root{ --btn:#111; --btnHover:#333; --accent:#22c55e; }
   body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,Helvetica;margin:12px;background:#f4f7fb;color:#111}
@@ -12,12 +12,11 @@
   .hud{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
   .stat{background:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.04);display:flex;align-items:center}
   #gameWrapper{
-    position:relative;height:520px;border-radius:12px;overflow:hidden;
-    border:1px solid rgba(0,0,0,0.06);
+    position:relative;height:520px;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,0.06);
     background-color:#e9e6e1;background-size:cover;background-position:center center;background-repeat:no-repeat;
   }
 
-  /* transparent fruit styles */
+  /* transparent fruit styles (no circular mask) */
   .fruit{
     position:absolute;
     width:auto;
@@ -45,21 +44,31 @@
   #gameArea{position:absolute;inset:0;touch-action:none;overflow:visible}
   canvas#splatCanvas{position:absolute;inset:0;z-index:50;pointer-events:none}
   canvas#bladeCanvas{position:absolute;inset:0;z-index:900;pointer-events:none}
+
+  .scorePop{position:absolute;right:12px;top:12px;background:#fff;padding:6px 10px;border-radius:8px;display:none;z-index:1100;box-shadow:0 10px 30px rgba(2,6,23,0.08)}
+  .comboBadge{
+    position:absolute;left:50%;top:14px;transform:translateX(-50%) scale(0.9);
+    background:linear-gradient(90deg,#ffd54d,#ffb74d);
+    padding:8px 14px;border-radius:999px;font-weight:800;color:#111;display:none;z-index:1100;
+    box-shadow:0 10px 30px rgba(0,0,0,0.12);transition:transform .28s ease,opacity .6s ease;
+  }
+
   .controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
   button{padding:8px 12px;border-radius:8px;border:0;background:var(--btn);color:#fff;cursor:pointer;font-weight:600;box-shadow:0 6px 12px rgba(2,6,23,0.06)}
   button:hover{background:var(--btnHover)}
   .ghost{background:#fff;color:#111;border:1px solid #e6e6e6;box-shadow:none;padding:8px 12px;border-radius:8px}
-  .scorePop{position:absolute;right:12px;top:12px;background:#fff;padding:6px 10px;border-radius:8px;display:none;z-index:1100;box-shadow:0 10px 30px rgba(2,6,23,0.08)}
-  .comboBadge{position:absolute;left:50%;top:12px;transform:translateX(-50%);background:rgba(255,200,60,0.98);padding:8px 14px;border-radius:999px;font-weight:700;display:none;z-index:1100;box-shadow:0 8px 20px rgba(0,0,0,0.12)}
+
   #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:200;background:rgba(0,0,0,0.85);color:#fff;padding:18px 28px;border-radius:12px;font-size:20px;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,0.25)}
+
   .debugBox{position:fixed;right:12px;top:12px;z-index:99999;background:rgba(0,0,0,0.8);color:#fff;padding:8px;max-width:38%;font-size:12px;border-radius:8px;line-height:1.25;max-height:60vh;overflow:auto;display:none}
   @media (max-width:700px){ #gameWrapper{height:420px} .debugBox{max-width:90%;left:6px;right:6px} }
+
   *{-webkit-tap-highlight-color:transparent!important;user-select:none!important}
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🍉 Fruit Cut — Transparent Fruits + Offline Save</h1>
+  <h1>🍉 Fruit Cut — Juice + Combo + Offline Save</h1>
 
   <div class="hud">
     <div class="stat">Score: <strong id="scoreEl">0</strong></div>
@@ -70,11 +79,13 @@
   </div>
 
   <div id="gameWrapper">
-    <div id="gameArea"></div>
+    <div id="gameArea" aria-label="Game area — swipe to cut fruits"></div>
     <canvas id="splatCanvas"></canvas>
     <canvas id="bladeCanvas"></canvas>
+
     <div class="scorePop" id="coinPop">+0</div>
     <div class="comboBadge" id="comboBadge">COMBO x2!</div>
+
     <div id="bigStart">START</div>
   </div>
 
@@ -82,59 +93,384 @@
     <button id="startBtn" class="ghost">Start</button>
     <button id="pauseBtn" class="ghost" disabled>Pause</button>
     <button id="restartBtn" class="ghost">Restart</button>
+    <button id="consoleBtn" class="ghost">Console</button>
   </div>
 
-  <p style="color:#666;margin-top:12px">Transparent PNG fruits supported. Swipe to cut fruits — smooth animation & offline save.</p>
+  <p style="color:#666;margin-top:12px">Tip: Slice multiple fruits quickly for combo. Splatter paints background and fades. Game saves to device.</p>
 </div>
 
 <div id="debug" class="debugBox"></div>
 
+<!-- Eruda for mobile debugging -->
 <script src="https://cdn.jsdelivr.net/npm/eruda"></script>
 <script>eruda.init();</script>
 
 <script>
+/* Fruit Cut: transparent PNG friendly + juice splatter + combo system + offline save
+   Put PNGs in ./images/ with names described by IMAGES array.
+*/
+
 (function(){
-  const gameArea=document.getElementById("gameArea"),
-        bladeCanvas=document.getElementById("bladeCanvas"),
-        splatCanvas=document.getElementById("splatCanvas"),
-        scoreEl=document.getElementById("scoreEl"),
-        livesEl=document.getElementById("livesEl"),
-        coinsEl=document.getElementById("coinsEl"),
-        levelEl=document.getElementById("levelEl"),
-        startBtn=document.getElementById("startBtn"),
-        pauseBtn=document.getElementById("pauseBtn"),
-        restartBtn=document.getElementById("restartBtn"),
-        coinPop=document.getElementById("coinPop"),
-        comboBadge=document.getElementById("comboBadge"),
-        bigStart=document.getElementById("bigStart");
-  const DBG=document.getElementById("debug");function dlog(m){console.log("[FruitCut]",m);if(window.innerWidth>700){DBG.style.display='block';const el=document.createElement('div');el.textContent=m;DBG.appendChild(el);if(DBG.childElementCount>50)DBG.removeChild(DBG.firstChild);}}
-  const IMAGES=["apple.png","banana.png","mango.png","orange.png","watermelon.png","strawberry.png","pineapple.png","papaya.png","pomegranate.png"];
-  const BOMB="bomb.png";const CACHE={};const active=[];let running=false,score=0,coins=0,lives=3,level=1;
-  const GRAVITY=0.25,MAX_ACTIVE=5,SPAWN_BASE=1000;let spawnTimer;
-  const bladeCtx=bladeCanvas.getContext("2d");const splatCtx=splatCanvas.getContext("2d");
-  let areaW=480,areaH=520;function resizeAll(){const r=gameArea.getBoundingClientRect();areaW=r.width;areaH=r.height;bladeCanvas.width=areaW;bladeCanvas.height=areaH;splatCanvas.width=areaW;splatCanvas.height=areaH;}window.addEventListener("resize",resizeAll);setTimeout(resizeAll,80);
-  async function preload(){await Promise.all(IMAGES.concat([BOMB]).map(n=>new Promise(res=>{const i=new Image();i.onload=()=>{CACHE[n]=i;res();};i.src="images/"+n;})));dlog("preload done");}
-  function makeFruit(name){const el=document.createElement("div");el.className="fruit";const img=document.createElement("img");img.className="fruit-img";img.src=CACHE[name]?CACHE[name].src:"images/"+name;const iw=100+(Math.random()*20);img.style.width=iw+"px";el.style.width=iw+"px";el.appendChild(img);gameArea.appendChild(el);return el;}
-  function spawnFruit(){if(!running)return;if(active.length>=MAX_ACTIVE)return;const n=Math.random()<.9?IMAGES[Math.floor(Math.random()*IMAGES.length)]:BOMB;const el=makeFruit(n);const x=Math.random()*(areaW-100),y=-150;const vx=(Math.random()-.5)*4,vy=15+Math.random()*3;active.push({el,x,y,vx,vy,type:n});}
-  function step(){for(let i=active.length-1;i>=0;i--){const f=active[i];f.vy-=GRAVITY;f.x+=f.vx;f.y+=f.vy;f.el.style.transform=`translate(${f.x}px,${-f.y}px)`;if(f.y<-400||f.x<-200||f.x>areaW+200){f.el.remove();active.splice(i,1);}}drawBlade();requestAnimationFrame(step);}requestAnimationFrame(step);
-  let isDown=false,bladePoints=[];function addBlade(x,y){const r=gameArea.getBoundingClientRect();bladePoints.push({x:x-r.left,y:y-r.top,t:Date.now()});if(bladePoints.length>12)bladePoints.shift();}
-  function drawBlade(){bladeCtx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height);for(let i=0;i<bladePoints.length-1;i++){const a=bladePoints[i],b=bladePoints[i+1];const alpha=Math.max(0,1-(Date.now()-a.t)/350);bladeCtx.strokeStyle=`rgba(34,197,94,${alpha})`;bladeCtx.lineWidth=8*alpha;bladeCtx.beginPath();bladeCtx.moveTo(a.x,a.y);bladeCtx.lineTo(b.x,b.y);bladeCtx.stroke();}}
-  window.addEventListener("pointerdown",e=>{isDown=true;addBlade(e.clientX,e.clientY);});
-  window.addEventListener("pointermove",e=>{if(!isDown)return;addBlade(e.clientX,e.clientY);checkHits(e);});
-  window.addEventListener("pointerup",()=>{isDown=false;bladePoints=[];});
-  function checkHits(e){const p={x:e.clientX,y:e.clientY};for(const f of [...active]){const r=f.el.getBoundingClientRect();if(p.x>r.left&&p.x<r.right&&p.y>r.top&&p.y<r.bottom){cutFruit(f);}}}
-  function cutFruit(f){if(f.cut)return;f.cut=true;f.el.remove();active.splice(active.indexOf(f),1);if(f.type===BOMB){lives--;if(lives<=0)gameOver();updateHUD();return;}score+=10;coins+=2;updateHUD();}
-  function updateHUD(){scoreEl.textContent=score;livesEl.textContent=lives;coinsEl.textContent=coins;levelEl.textContent=level;}
-  function startGame(){if(running)return;running=true;bigStart.style.display="none";spawnFruit();spawnTimer=setInterval(spawnFruit,SPAWN_BASE);updateHUD();}
-  function pauseGame(){running=!running;if(!running){clearInterval(spawnTimer);}else{spawnTimer=setInterval(spawnFruit,SPAWN_BASE);}updateHUD();}
-  function restartGame(){for(const f of [...active])f.el.remove();active.length=0;score=0;lives=3;coins=0;level=1;running=false;clearInterval(spawnTimer);bigStart.style.display="block";updateHUD();}
-  function gameOver(){running=false;clearInterval(spawnTimer);bigStart.style.display="block";}
-  startBtn.onclick=startGame;pauseBtn.onclick=pauseGame;restartBtn.onclick=restartGame;bigStart.onclick=startGame;
-  (async()=>{await preload();resizeAll();restoreState();setTimeout(()=>startGame(),500);})();
-  function saveState(){localStorage.setItem("fruitcut_state",JSON.stringify({score,coins,lives}));}
-  function restoreState(){const s=JSON.parse(localStorage.getItem("fruitcut_state")||"{}");if(s.score)score=s.score;if(s.coins)coins=s.coins;if(s.lives)lives=s.lives;updateHUD();}
-  window.addEventListener("beforeunload",saveState);
-})();
-</script>
-</body>
-  </html>
+  const DBG = document.getElementById('debug');
+  function dlog(msg){ console.log('[FruitCut]', msg); if(window.innerWidth>700){ DBG.style.display='block'; const el=document.createElement('div'); el.textContent = msg; DBG.appendChild(el); if(DBG.childElementCount>80) DBG.removeChild(DBG.firstChild); } }
+
+  // DOM
+  const gameArea = document.getElementById('gameArea');
+  const splatCanvas = document.getElementById('splatCanvas');
+  const bladeCanvas = document.getElementById('bladeCanvas');
+  const scoreEl = document.getElementById('scoreEl');
+  const livesEl = document.getElementById('livesEl');
+  const coinsEl = document.getElementById('coinsEl');
+  const levelEl = document.getElementById('levelEl');
+  const startBtn = document.getElementById('startBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+  const restartBtn = document.getElementById('restartBtn');
+  const consoleBtn = document.getElementById('consoleBtn');
+  const coinPop = document.getElementById('coinPop');
+  const comboBadge = document.getElementById('comboBadge');
+  const bigStart = document.getElementById('bigStart');
+
+  if(!gameArea){ dlog('Missing #gameArea — abort'); return; }
+
+  // images
+  const IMAGES = ["apple.png","banana.png","mango.png","orange.png","watermelon.png","strawberry.png","pineapple.png","papaya.png","pomegranate.png"];
+  const BOMB = "bomb.png";
+  const ALL = IMAGES.concat([BOMB]);
+
+  // tuning
+  const GRAVITY = 0.26;
+  const SPAWN_BASE = 1100;
+  let spawnInterval = SPAWN_BASE;
+  const MAX_ACTIVE = 6;
+  const MAX_BLADE = 12;
+  const PTR_THROTTLE = 28;
+
+  // combo config
+  const COMBO_WINDOW_MS = 700; // within this time multiple slices count as combo
+  const COMBO_MULT = [1,1.2,1.5,2.0,3.0];
+
+  // state
+  let score = 0, lives = 3, coins = 0, level = 1;
+  let running = false, spawnTimer = null;
+  const active = []; // {el,x,y,vx,vy,rot,type,cut}
+  const POOL = [];
+  const JUICE_POOL = [];
+  const CACHE = {};
+  let lastSlices = [];
+
+  // canvas contexts
+  let splatCtx = splatCanvas.getContext('2d');
+  let bladeCtx = bladeCanvas.getContext('2d');
+
+  // area
+  let areaW = 480, areaH = 520;
+  function resizeAll(){
+    const r = gameArea.getBoundingClientRect();
+    areaW = Math.max(1, Math.floor(r.width)); areaH = Math.max(1, Math.floor(r.height));
+    bladeCanvas.width = areaW; bladeCanvas.height = areaH;
+    splatCanvas.width = areaW; splatCanvas.height = areaH;
+    splatCtx = splatCanvas.getContext('2d'); bladeCtx = bladeCanvas.getContext('2d');
+    dlog('Area: ' + areaW + 'x' + areaH);
+  }
+  window.addEventListener('resize', resizeAll);
+  setTimeout(resizeAll,80);
+
+  // preload images (decode)
+  async function preloadAll(){
+    dlog('Preloading images from images/ ...');
+    const tasks = ALL.map(name => new Promise(res=>{
+      const img = new Image();
+      img.onload = async ()=> { try{ if(img.decode) await img.decode(); } catch(e){} CACHE[name] = img; dlog('loaded ' + name); res(true); };
+      img.onerror = ()=> { dlog('failed to load ' + name); res(false); };
+      img.src = 'images/' + name;
+    }));
+    await Promise.all(tasks);
+    dlog('Preload complete: ' + Object.keys(CACHE).join(', '));
+  }
+
+  // pooling
+  function makeFruitEl(){
+    const el = document.createElement('div'); el.className = 'fruit'; el.style.position = 'absolute';
+    const img = document.createElement('img'); img.className = 'fruit-img'; img.draggable = false;
+    el.appendChild(img);
+    return el;
+  }
+  function acquireFruit(){ return POOL.length ? POOL.pop() : makeFruitEl(); }
+  function releaseFruit(el){ const img = el.querySelector('img'); if(img) img.src = ''; if(el.parentNode) el.parentNode.removeChild(el); POOL.push(el); }
+
+  function makeJuice(){ const j = document.createElement('div'); j.className='juice'; j.style.position='absolute'; j.style.pointerEvents='none'; j.style.zIndex=950; j.style.borderRadius='50%'; return j; }
+  function acquireJuice(){ return JUICE_POOL.length ? JUICE_POOL.pop() : makeJuice(); }
+  function releaseJuice(j){ if(j.parentNode) j.parentNode.removeChild(j); JUICE_POOL.push(j); }
+
+  // splat canvas array
+  const splats = [];
+  const SPLAT_MAX = 48;
+  function addSplat(x,y,color,size,strength=1){
+    if(splats.length >= SPLAT_MAX) splats.shift();
+    splats.push({x,y,color,size,alpha:0.95*strength,life:1});
+  }
+  function drawSplats(){
+    // gentle fade overlay to slowly fade splats (so they persist for a while)
+    splatCtx.save();
+    splatCtx.fillStyle = 'rgba(233,230,225,0.03)';
+    splatCtx.fillRect(0,0,splatCanvas.width,splatCanvas.height);
+    for(let i=splats.length-1;i>=0;i--){
+      const s = splats[i];
+      const g = splatCtx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.size);
+      g.addColorStop(0, `rgba(${s.color.r},${s.color.g},${s.color.b},${s.alpha})`);
+      g.addColorStop(1, `rgba(${s.color.r},${s.color.g},${s.color.b},0)`);
+      splatCtx.fillStyle = g;
+      splatCtx.fillRect(s.x-s.size, s.y-s.size, s.size*2, s.size*2);
+      s.alpha *= 0.96;
+      s.life -= 0.02;
+      if(s.alpha < 0.02 || s.life < 0) splats.splice(i,1);
+    }
+    splatCtx.restore();
+  }
+
+  // spawn fruits
+  function spawnOne(typeName){
+    if(!running) return;
+    if(active.length >= MAX_ACTIVE) return;
+    const name = typeName || (Math.random() < 0.92 ? IMAGES[Math.floor(Math.random()*IMAGES.length)] : BOMB);
+    const el = acquireFruit();
+    const img = el.querySelector('img');
+
+    // determine desired display width (responsive)
+    const desiredWidth = Math.max(72, Math.min(160, Math.floor(areaW * 0.16)));
+
+    // set image src and size using preloaded natural size if available
+    if(CACHE[name]){
+      img.src = CACHE[name].src;
+      const nat = CACHE[name];
+      const ar = (nat.naturalHeight && nat.naturalWidth) ? (nat.naturalHeight / nat.naturalWidth) : 1;
+      img.style.width = desiredWidth + 'px';
+      img.style.height = Math.round(desiredWidth * ar) + 'px';
+      el.style.width = img.style.width;
+      el.style.height = img.style.height;
+    } else {
+      img.src = 'images/' + name;
+      img.style.width = desiredWidth + 'px';
+      img.style.height = 'auto';
+      el.style.width = img.style.width;
+      el.style.height = img.style.height;
+    }
+
+    // position
+    const startX = Math.floor(Math.random() * Math.max(1, areaW - parseFloat(el.style.width) - 40)) + 20;
+    const startY = -140;
+    el.style.left = startX + 'px';
+    el.style.bottom = startY + 'px';
+    el.dataset.type = name;
+    gameArea.appendChild(el);
+
+    const vy = 16 + Math.random()*4;
+    const vx = (Math.random()-0.5) * 3.6;
+    const rot = (Math.random()-0.5) * 40;
+    active.push({el, x: startX, y: startY, vx, vy, rot, type: name, cut: false});
+  }
+
+  // animation loop
+  let last = performance.now();
+  function step(now){
+    const dt = Math.min(40, now - last) / 16.666; last = now;
+    const floor = areaH - 36;
+    for(let i=active.length-1;i>=0;i--){
+      const f = active[i];
+      f.vy -= GRAVITY * dt;
+      f.x += f.vx * dt;
+      f.y += f.vy * dt;
+      f.rot += f.vx * 0.8 * dt;
+      if(f.y > floor){ f.y = floor; f.vy = -Math.abs(f.vy) * 0.45; }
+      // use translate3d for GPU
+      f.el.style.transform = `translate3d(${f.x}px, ${-f.y}px, 0) rotate(${f.rot}deg)`;
+      // cleanup offscreen
+      if(f.x < -300 || f.x > areaW + 300 || f.y < -500){
+        releaseFruit(f.el); active.splice(i,1);
+      }
+    }
+    drawSplats();
+    drawBlade();
+    requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+
+  // blade drawing (throttled trail)
+  let bladePoints = [];
+  function addBladePoint(clientX, clientY){
+    const rect = gameArea.getBoundingClientRect();
+    bladePoints.push({x: clientX - rect.left, y: clientY - rect.top, t: Date.now()});
+    if(bladePoints.length > MAX_BLADE) bladePoints.shift();
+  }
+  function drawBlade(){
+    bladeCtx.clearRect(0,0,bladeCanvas.width, bladeCanvas.height);
+    if(bladePoints.length < 2) return;
+    bladeCtx.lineJoin = 'round'; bladeCtx.lineCap = 'round';
+    for(let i=0;i<bladePoints.length-1;i++){
+      const a = bladePoints[i], b = bladePoints[i+1];
+      const age = Date.now() - a.t;
+      const alpha = Math.max(0, 1 - age / 360);
+      bladeCtx.strokeStyle = `rgba(34,197,94,${0.9 * alpha})`;
+      bladeCtx.lineWidth = 10 * alpha + 2;
+      bladeCtx.beginPath(); bladeCtx.moveTo(a.x, a.y); bladeCtx.lineTo(b.x, b.y); bladeCtx.stroke();
+    }
+  }
+
+  // pointer handling + slicing detection
+  let isDown = false, lastPtr = 0;
+  let pointerHistory = [];
+  function onPointerDown(e){ isDown = true; pointerHistory = []; addBladePoint(e.clientX, e.clientY); e.preventDefault && e.preventDefault(); }
+  function onPointerMove(e){
+    if(!isDown) return;
+    const now = Date.now(); if(now - lastPtr < PTR_THROTTLE) return; lastPtr = now;
+    addBladePoint(e.clientX, e.clientY);
+    pointerHistory.push({x: e.clientX, y: e.clientY});
+    if(pointerHistory.length > 18) pointerHistory.shift();
+    if(pointerHistory.length >= 2){
+      const p1 = pointerHistory[pointerHistory.length - 2];
+      const p2 = pointerHistory[pointerHistory.length - 1];
+      const snap = Array.from(active);
+      for(const f of snap){
+        const r = f.el.getBoundingClientRect();
+        if(lineIntersectsRect(p1, p2, r)) handleSlice(f, p1, p2);
+      }
+    }
+  }
+  function onPointerUp(){ isDown = false; pointerHistory = []; bladePoints = []; drawBlade(); }
+  window.addEventListener('pointerdown', onPointerDown, {passive:false});
+  window.addEventListener('pointermove', onPointerMove, {passive:false});
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerUp);
+
+  function lineIntersectsRect(p1, p2, rect){
+    if((p1.x < rect.left && p2.x < rect.left) || (p1.x > rect.right && p2.x > rect.right) ||
+       (p1.y < rect.top && p2.y < rect.top) || (p1.y > rect.bottom && p2.y > rect.bottom)) return false;
+    return true;
+  }
+
+  // juice color by fruit name
+  function juiceColorFor(name){
+    name = (name || '').toLowerCase();
+    if(name.includes('apple')) return {r:220,g:50,b:60};
+    if(name.includes('banana')) return {r:240,g:210,b:60};
+    if(name.includes('orange')) return {r:245,g:140,b:40};
+    if(name.includes('strawberry')) return {r:230,g:80,b:90};
+    if(name.includes('watermelon')) return {r:250,g:100,b:120};
+    if(name.includes('mango')) return {r:255,g:160,b:40};
+    if(name.includes('papaya')) return {r:250,g:140,b:60};
+    if(name.includes('pineapple')) return {r:245,g:180,b:70};
+    if(name.includes('pomegranate')) return {r:190,g:20,b:30};
+    return {r:240,g:120,b:100};
+  }
+
+  // slicing -> splatter + combo + halves animation
+  function handleSlice(f, p1, p2){
+    if(!f || f.cut) return;
+    f.cut = true;
+
+    const type = f.type || (f.el && f.el.dataset && f.el.dataset.type);
+
+    // Bomb handling
+    if(type === BOMB){
+      lives = Math.max(0, lives - 1);
+      dlog('Bomb sliced: lives=' + lives);
+      removeFruit(f);
+      updateHUD();
+      saveStateDebounced();
+      if(lives <= 0) endGame();
+      return;
+    }
+
+    // add splats at fruit center
+    const rect = f.el.getBoundingClientRect();
+    const cx = rect.left + rect.width/2 - gameArea.getBoundingClientRect().left;
+    const cy = rect.top + rect.height/2 - gameArea.getBoundingClientRect().top;
+    const color = juiceColorFor(type);
+    addSplat(cx + (Math.random()-0.5)*18, cy + (Math.random()-0.5)*12, color, 22 + Math.random()*14, 1);
+    addSplat(cx + (Math.random()-0.5)*30, cy + (Math.random()-0.5)*20, color, 10 + Math.random()*10, 0.9);
+
+    // small juice particles (DOM)
+    const smallCount = 6;
+    for(let i=0;i<smallCount;i++){
+      const j = acquireJuice();
+      const size = 5 + Math.random()*7;
+      j.style.width = size + 'px'; j.style.height = size + 'px';
+      j.style.left = (cx + (Math.random()-0.5)*12) + 'px';
+      j.style.top = (cy + (Math.random()-0.5)*12) + 'px';
+      j.style.background = `rgba(${color.r},${color.g},${color.b},${0.9 - Math.random()*0.25})`;
+      gameArea.appendChild(j);
+      (function(juiceEl){
+        const sx = parseFloat(juiceEl.style.left), sy = parseFloat(juiceEl.style.top);
+        const vx = (Math.random()-0.5) * 6, vy = - (2 + Math.random()*6);
+        const start = performance.now();
+        function anim(now){
+          const t = (now - start)/1000;
+          const x = sx + vx * t * 60;
+          const y = sy + vy * t * 60 + 0.5 * GRAVITY * t * t * 60;
+          juiceEl.style.left = x + 'px'; juiceEl.style.top = y + 'px';
+          juiceEl.style.opacity = String(Math.max(0, 1 - t * 1.4));
+          if(t < 0.9) requestAnimationFrame(anim); else releaseJuice(juiceEl);
+        }
+        requestAnimationFrame(anim);
+      })(j);
+    }
+
+    // scoring + combo detection
+    const now = Date.now(); lastSlices.push(now);
+    lastSlices = lastSlices.filter(ts => now - ts <= COMBO_WINDOW_MS);
+    const count = lastSlices.length;
+    const index = Math.min(Math.max(0, count-1), COMBO_MULT.length - 1);
+    const mult = COMBO_MULT[index] || 1;
+    const base = 10;
+    const awarded = Math.round(base * mult);
+    score += awarded;
+    coins += Math.round(2 * mult);
+    // coin pop
+    coinPop.textContent = '+' + Math.round(2 * mult);
+    coinPop.style.display = 'block';
+    setTimeout(()=> coinPop.style.display = 'none', 700);
+    // combo badge
+    if(count > 1){
+      comboBadge.textContent = `COMBO x${count}!`;
+      comboBadge.style.display = 'block';
+      comboBadge.style.transform = 'translateX(-50%) scale(1.14)';
+      comboBadge.style.opacity = '1';
+      setTimeout(()=> {
+        comboBadge.style.transition = 'transform .6s cubic-bezier(.2,.9,.3,1), opacity .6s ease';
+        comboBadge.style.transform = 'translateX(-50%) scale(.92)';
+        comboBadge.style.opacity = '0';
+        setTimeout(()=> { comboBadge.style.display = 'none'; comboBadge.style.transition = ''; comboBadge.style.transform = 'translateX(-50%) scale(0.9)'; }, 620);
+      }, 330);
+    }
+
+    updateHUD();
+    saveStateDebounced();
+
+    // create halves animation (use two images offset)
+    removeFruit(f);
+    createHalves(rect, type);
+  }
+
+  function removeFruit(f){
+    for(let i=active.length-1;i>=0;i--) if(active[i] === f){ if(active[i].el.parentNode) active[i].el.parentNode.removeChild(active[i].el); active.splice(i,1); break; }
+  }
+
+  function createHalves(rect, type){
+    const centerX = rect.left + rect.width/2 - gameArea.getBoundingClientRect().left;
+    const centerY = rect.top + rect.height/2 - gameArea.getBoundingClientRect().top;
+    const wrapper = document.createElement('div');
+    wrapper.style.position = 'absolute';
+    wrapper.style.left = (centerX - rect.width/2) + 'px';
+    wrapper.style.bottom = (-(centerY - rect.height/2)) + 'px';
+    wrapper.style.width = rect.width + 'px';
+    wrapper.style.height = rect.height + 'px';
+    wrapper.style.pointerEvents = 'none';
+    wrapper.style.zIndex = 980;
+
+    const left = document.createElement('div'); left.className = 'half left';
+    const li = document.createElement('img'); li.src = CACHE[type] ? CACHE[type].src : 'images/' + type;
+    li.style.left = '0'; li.style.top = '0'; li.style.width = '200%'; li.style.height = '100%';
+    left.appendChild(li);
+
+    const right = document.createElement('div'); right.className = 'half right';
+    const ri = document.createElement(
