@@ -3,42 +3,39 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Stable Build</title>
+<title>Fruit Cut — Final Polished Build</title>
 <style>
-  :root{ --btn:#111; --btnHover:#333; --accent:#22c55e; }
-  body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,Helvetica;margin:12px;background:#f4f7fb;color:#111}
+  :root{ --btn:#111; --accent:#22c55e; }
+  body{font-family:Inter,system-ui,Roboto,Arial;margin:12px;background:#f4f7fb;color:#111}
   .container{max-width:980px;margin:0 auto}
-  h1{margin:6px 0 10px}
   .hud{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
-  .stat{background:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.04);display:flex;align-items:center}
-  #gameWrapper{position:relative;height:520px;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,0.06);background-color:#e9e6e1}
-  #gameArea{position:absolute;inset:0;touch-action:none;overflow:visible}
+  .stat{background:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.04)}
+  #gameWrapper{position:relative;height:520px;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,0.06);background:#e9e6e1}
+  #gameArea{position:absolute;inset:0;touch-action:none}
   canvas{position:absolute;inset:0;pointer-events:none}
-  .fruit{position:absolute;will-change:transform;z-index:600;pointer-events:none;touch-action:none}
+  .fruit{position:absolute;will-change:transform;z-index:600;pointer-events:none}
   img.fruit-img{display:block;pointer-events:none;user-select:none}
   .controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
   button{padding:8px 12px;border-radius:8px;border:0;background:var(--btn);color:#fff;cursor:pointer;font-weight:600}
-  .ghost{background:#fff;color:#111;border:1px solid #e6e6e6;padding:8px 12px;border-radius:8px}
+  .ghost{background:#fff;color:#111;border:1px solid #e6e6e6}
   .debugBox{position:fixed;right:12px;top:12px;z-index:99999;background:rgba(0,0,0,0.85);color:#fff;padding:10px;max-width:360px;font-size:12px;border-radius:8px;line-height:1.25;max-height:60vh;overflow:auto;display:block}
   .debugLine{font-family:monospace;font-size:12px;margin:2px 0}
   #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:200;background:rgba(0,0,0,0.85);color:#fff;padding:16px 22px;border-radius:10px;cursor:pointer;display:none}
-  @media (max-width:700px){ #gameWrapper{height:420px} .debugBox{left:6px;right:6px;max-width:unset} }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🍉 Fruit Cut — Stable Build</h1>
+  <h1>🍉 Fruit Cut — Final Polished</h1>
 
   <div class="hud">
     <div class="stat">Score: <strong id="scoreEl">0</strong></div>
     <div class="stat">Lives: <strong id="livesEl">3</strong></div>
     <div class="stat">Coins: <strong id="coinsEl">0</strong></div>
-    <div style="flex:1"></div>
     <div class="stat">Level: <strong id="levelEl">1</strong></div>
   </div>
 
   <div id="gameWrapper">
-    <div id="gameArea" aria-label="Game area — swipe to cut fruits"></div>
+    <div id="gameArea"></div>
     <canvas id="splatCanvas" style="z-index:40"></canvas>
     <canvas id="bladeCanvas" style="z-index:900"></canvas>
     <div id="bigStart">START</div>
@@ -50,214 +47,52 @@
     <button id="restartBtn" class="ghost">Restart</button>
     <button id="toggleConsole" class="ghost">Toggle Console</button>
   </div>
-
-  <p style="color:#666;margin-top:12px">If game doesn't auto-start, open the console box (Toggle Console) and paste top lines here.</p>
 </div>
 
 <div id="debug" class="debugBox"></div>
 
 <script>
-/* Stable Fruit Cut — key changes:
-   - preload timeout 3000ms
-   - spawn interval slower (1800ms)
-   - smaller fruit, spawn from bottom
-   - logs missing images explicitly
-*/
 (function(){
-  const debugBox = document.getElementById('debug');
-  function dbg(msg, lvl='log'){ const time=new Date().toLocaleTimeString(); const d=document.createElement('div'); d.className='debugLine'; d.textContent='['+time+'] '+msg; if(lvl==='error') d.style.color='#ffbbbb'; debugBox.appendChild(d); while(debugBox.childElementCount>150) debugBox.removeChild(debugBox.firstChild); (console[lvl]||console.log)('[FruitCut]',msg); }
-  document.getElementById('toggleConsole').addEventListener('click', ()=> { debugBox.style.display = debugBox.style.display==='none' ? 'block' : 'none'; });
+  const debugBox=document.getElementById('debug');
+  function dbg(m,l='log'){const t=new Date().toLocaleTimeString();const d=document.createElement('div');d.className='debugLine';d.textContent='['+t+'] '+m;if(l==='error')d.style.color='#f88';debugBox.appendChild(d);while(debugBox.childElementCount>120)debugBox.removeChild(debugBox.firstChild);(console[l]||console.log)('[FruitCut]',m);}
+  document.getElementById('toggleConsole').onclick=()=>debugBox.style.display=debugBox.style.display==='none'?'block':'none';
+  (function(){try{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/eruda';s.onload=()=>{try{eruda.init();dbg('eruda loaded');}catch(e){dbg('eruda init fail:'+e,'error')}};document.head.appendChild(s);}catch(e){dbg('eruda err:'+e,'error')}})();
 
-  // try load eruda (non-blocking)
-  (function(){ try{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/eruda'; s.onload=function(){ try{ eruda.init(); dbg('eruda loaded'); }catch(e){ dbg('eruda init failed: '+e,'error'); } }; s.onerror=function(){ dbg('eruda failed to load'); }; document.head.appendChild(s); }catch(e){ dbg('eruda injection error: '+e,'error'); } })();
+  const gameArea=document.getElementById('gameArea');
+  const bladeCanvas=document.getElementById('bladeCanvas');
+  const splatCanvas=document.getElementById('splatCanvas');
+  const scoreEl=document.getElementById('scoreEl'),livesEl=document.getElementById('livesEl'),coinsEl=document.getElementById('coinsEl');
+  const startBtn=document.getElementById('startBtn'),pauseBtn=document.getElementById('pauseBtn'),restartBtn=document.getElementById('restartBtn');
+  const GRAVITY=0.18,SPAWN_INTERVAL=1800,MAX_ACTIVE=5;
+  const IMGS=["apple.png","banana.png","mango.png","orange.png","watermelon.png","strawberry.png","pineapple.png","papaya.png","pomegranate.png"],BOMB="bomb.png",ALL=IMGS.concat([BOMB]);
+  let score=0,lives=3,coins=0,running=false;const active=[],CACHE={};
+  let areaW=480,areaH=520,bladeCtx=bladeCanvas.getContext('2d'),splatCtx=splatCanvas.getContext('2d');
+  function resize(){const r=gameArea.getBoundingClientRect();areaW=r.width;areaH=r.height;bladeCanvas.width=areaW;bladeCanvas.height=areaH;splatCanvas.width=areaW;splatCanvas.height=areaH;}window.addEventListener('resize',resize);setTimeout(resize,80);
 
-  // DOM
-  const gameArea = document.getElementById('gameArea');
-  const bladeCanvas = document.getElementById('bladeCanvas');
-  const splatCanvas = document.getElementById('splatCanvas');
-  const scoreEl = document.getElementById('scoreEl');
-  const livesEl = document.getElementById('livesEl');
-  const coinsEl = document.getElementById('coinsEl');
-  const levelEl = document.getElementById('levelEl');
-  const startBtn = document.getElementById('startBtn');
-  const pauseBtn = document.getElementById('pauseBtn');
-  const restartBtn = document.getElementById('restartBtn');
-  const bigStart = document.getElementById('bigStart');
+  async function preload(t=3000){dbg('Preload start');const ps=ALL.map(n=>new Promise(r=>{const i=new Image();i.onload=()=>{CACHE[n]=i;dbg('ok:'+n);r(1)};i.onerror=()=>{dbg('fail:'+n);r(0)};i.src='images/'+n;}));await Promise.race([Promise.all(ps),new Promise(r=>setTimeout(r, t))]);dbg('Preload done');}
 
-  if(!gameArea){ dbg('No #gameArea — abort','error'); return; }
+  function emojiFor(n){n=n||'';if(n.includes('apple'))return'🍎';if(n.includes('banana'))return'🍌';if(n.includes('mango'))return'🥭';if(n.includes('orange'))return'🍊';if(n.includes('watermelon'))return'🍉';if(n.includes('strawberry'))return'🍓';if(n.includes('pineapple'))return'🍍';if(n.includes('papaya'))return'🟠';if(n.includes('pomegranate'))return'🔴';if(n.includes('bomb'))return'💣';return'🍇';}
 
-  // config
-  const IMAGE_LIST = ["apple.png","banana.png","mango.png","orange.png","watermelon.png","strawberry.png","pineapple.png","papaya.png","pomegranate.png"];
-  const BOMB = "bomb.png"; const ALL = IMAGE_LIST.concat([BOMB]);
-  const GRAVITY = 0.18;
-  let SPAWN_INTERVAL = 1800; // slower for smoothness
-  const MAX_ACTIVE = 5;
+  function spawn(){if(!running)return;if(active.length>=MAX_ACTIVE)return;const isBomb=Math.random()<0.07;const name=isBomb?BOMB:IMGS[Math.floor(Math.random()*IMGS.length)];const el=document.createElement('div');el.className='fruit';const img=document.createElement('img');img.className='fruit-img';const w=Math.max(44,Math.min(88,areaW*0.09));if(CACHE[name]){img.src=CACHE[name].src;img.style.width=w+'px';img.style.height='auto';}else{img.remove();el.textContent=emojiFor(name);el.style.fontSize=w+'px';}el.dataset.type=name;el.style.left=Math.random()*(areaW-w)+'px';el.style.bottom='-20px';el.appendChild(img);gameArea.appendChild(el);active.push({el,x:parseFloat(el.style.left),y:-20,vx:(Math.random()-0.5)*1.2,vy:7+Math.random(),rot:0,type:name,cut:false});}
 
-  // state
-  let score=0, lives=3, coins=0, level=1, running=false;
-  const active=[], POOL=[], CACHE={};
-  let areaW=480, areaH=520, bladeCtx=bladeCanvas.getContext('2d'), splatCtx=splatCanvas.getContext('2d');
+  let last=performance.now();function loop(now){const dt=(now-last)/16.6;last=now;for(let i=active.length-1;i>=0;i--){const f=active[i];f.vy-=GRAVITY*dt;f.x+=f.vx*dt*1.2;f.y+=f.vy*dt;f.rot+=f.vx*dt;f.el.style.transform=`translate3d(${f.x}px,${-f.y}px,0)rotate(${f.rot}deg)`;if(f.y>areaH-32){f.vy=-Math.abs(f.vy)*0.4;}if(f.x<-300||f.x>areaW+300||f.y<-600){gameArea.removeChild(f.el);active.splice(i,1);}}drawBlade();drawJuice();requestAnimationFrame(loop);}
+  const juice=[];function addJuice(x,y,c){juice.push({x,y,c,a:1});}
+  function drawJuice(){if(!splatCtx)return;splatCtx.clearRect(0,0,splatCanvas.width,splatCanvas.height);for(let i=juice.length-1;i>=0;i--){const j=juice[i];splatCtx.beginPath();splatCtx.fillStyle=`rgba(${j.c.r},${j.c.g},${j.c.b},${j.a})`;splatCtx.arc(j.x,j.y,10,0,Math.PI*2);splatCtx.fill();j.a-=0.04;if(j.a<=0)juice.splice(i,1);}}
 
-  function resizeAll(){ const r=gameArea.getBoundingClientRect(); areaW=Math.max(1,Math.floor(r.width)); areaH=Math.max(1,Math.floor(r.height)); bladeCanvas.width=areaW; bladeCanvas.height=areaH; splatCanvas.width=areaW; splatCanvas.height=areaH; bladeCtx=bladeCanvas.getContext('2d'); splatCtx=splatCanvas.getContext('2d'); dbg('Area size: '+areaW+'x'+areaH); }
-  window.addEventListener('resize', resizeAll); setTimeout(resizeAll,80);
+  let bladePts=[];function addBlade(x,y){const r=gameArea.getBoundingClientRect();bladePts.push({x:x-r.left,y:y-r.top,t:Date.now()});if(bladePts.length>12)bladePts.shift();}
+  function drawBlade(){bladeCtx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height);for(let i=0;i<bladePts.length-1;i++){const a=bladePts[i],b=bladePts[i+1],age=Date.now()-a.t,al=Math.max(0,1-age/420);bladeCtx.strokeStyle=`rgba(34,197,94,${0.9*al})`;bladeCtx.lineWidth=6*al+2;bladeCtx.beginPath();bladeCtx.moveTo(a.x,a.y);bladeCtx.lineTo(b.x,b.y);bladeCtx.stroke();}}
 
-  // preload images with higher timeout
-  async function preload(timeoutMs=3000){
-    dbg('preloading images (timeout '+timeoutMs+'ms)...');
-    const tasks = ALL.map(name => new Promise(res=>{
-      try{
-        const img = new Image();
-        img.onload = ()=> { CACHE[name]=img; dbg('loaded '+name); res({name,ok:true}); };
-        img.onerror = ()=> { dbg('failed: '+name); res({name,ok:false}); };
-        img.src = 'images/' + name;
-      }catch(e){ dbg('preload err '+name+': '+e,'error'); res({name,ok:false}); }
-    }));
-    const all = Promise.all(tasks);
-    const t = new Promise(r=>setTimeout(()=>r('__timeout__'), timeoutMs));
-    const result = await Promise.race([all,t]);
-    if(result === '__timeout__'){ dbg('preload timed out — continuing'); try{ await all; }catch(e){} }
-    // report missing
-    const missing = ALL.filter(n => !CACHE[n]);
-    if(missing.length) dbg('Missing images: ' + missing.join(', '), 'error');
-    else dbg('All images loaded or available');
-  }
+  function colorFor(n){n=n||'';if(n.includes('apple'))return{r:220,g:50,b:60};if(n.includes('banana'))return{r:240,g:210,b:60};if(n.includes('orange'))return{r:245,g:140,b:40};if(n.includes('mango'))return{r:255,g:160,b:40};if(n.includes('strawberry'))return{r:230,g:80,b:90};if(n.includes('pineapple'))return{r:245,g:180,b:70};return{r:240,g:120,b:100};}
 
-  // element pool
-  function makeEl(){ const el=document.createElement('div'); el.className='fruit'; el.style.position='absolute'; const img=document.createElement('img'); img.className='fruit-img'; img.draggable=false; img.style.display='block'; el.appendChild(img); return el; }
-  function acquire(){ return POOL.length?POOL.pop():makeEl(); }
-  function release(el){ try{ const img = el.querySelector('img'); if(img) img.src=''; if(el.parentNode) el.parentNode.removeChild(el); POOL.push(el); }catch(e){ dbg('release err:'+e,'error'); } }
+  function slice(f){if(f.cut)return;f.cut=true;if(f.type===BOMB){lives--;dbg('Bomb! Lives:'+lives,'error');if(lives<=0)running=false;}else{score+=10;coins++;const r=f.el.getBoundingClientRect(),x=r.left+r.width/2-gameArea.getBoundingClientRect().left,y=r.top+r.height/2-gameArea.getBoundingClientRect().top;addJuice(x,y,colorFor(f.type));dbg('Slice '+f.type);}gameArea.removeChild(f.el);active.splice(active.indexOf(f),1);}
+  window.addEventListener('pointerdown',e=>{addBlade(e.clientX,e.clientY);isDown=true;});
+  window.addEventListener('pointermove',e=>{if(!isDown)return;addBlade(e.clientX,e.clientY);for(const f of active){const r=f.el.getBoundingClientRect();if(e.clientX>r.left&&e.clientX<r.right&&e.clientY>r.top&&e.clientY<r.bottom)slice(f);}});
+  window.addEventListener('pointerup',()=>isDown=false);
 
-  // spawn from bottom, slower
-  function spawnOne(){
-    if(!running) return;
-    if(active.length >= MAX_ACTIVE) return;
-    const isBomb = Math.random() < 0.07;
-    const name = isBomb ? BOMB : IMAGE_LIST[Math.floor(Math.random()*IMAGE_LIST.length)];
-    const el = acquire(); const img = el.querySelector('img');
-    const targetW = Math.max(44, Math.min(92, Math.floor(areaW*0.09)));
-    if(CACHE[name]){ img.src = CACHE[name].src; img.style.width = targetW + 'px'; img.style.height = 'auto'; el.style.width = img.style.width; el.style.height = img.style.height; el.textContent=''; }
-    else { // fallback emoji
-      img.src=''; el.textContent = emojiFor(name); el.style.fontSize = Math.max(28, Math.floor(targetW*0.9)) + 'px'; el.style.width = targetW + 'px'; el.style.height = (targetW) + 'px';
-    }
-    const x = Math.floor(Math.random() * Math.max(1, areaW - targetW - 20)) + 10;
-    const startY = -28;
-    el.style.left = x + 'px'; el.style.bottom = startY + 'px'; el.dataset.type = name;
-    gameArea.appendChild(el);
-    const vx = (Math.random()-0.5) * 1.2;
-    const vy = 7.0 + Math.random()*1.0; // slower
-    const rot = (Math.random()-0.5) * 20;
-    active.push({el, x, y:startY, vx, vy, rot, type:name, cut:false, w:targetW});
-  }
+  function start(){if(running)return;running=true;setInterval(spawn,SPAWN_INTERVAL);dbg('Game started');}
+  startBtn.onclick=start;pauseBtn.onclick=()=>running=!running;restartBtn.onclick=()=>{location.reload();};
 
-  function emojiFor(name){
-    name = name||'';
-    if(name.includes('apple')) return '🍎';
-    if(name.includes('banana')) return '🍌';
-    if(name.includes('mango')) return '🥭';
-    if(name.includes('orange')) return '🍊';
-    if(name.includes('watermelon')) return '🍉';
-    if(name.includes('strawberry')) return '🍓';
-    if(name.includes('pineapple')) return '🍍';
-    if(name.includes('papaya')) return '🟠';
-    if(name.includes('pomegranate')) return '🔴';
-    if(name.includes('bomb')) return '💣';
-    return '🍇';
-  }
-
-  // animation loop
-  let last = performance.now();
-  function step(now){
-    const dt = Math.min(40, now-last)/16.666; last = now;
-    const floor = areaH - 32;
-    for(let i=active.length-1;i>=0;i--){
-      const f = active[i];
-      f.vy -= GRAVITY * dt;
-      f.x += f.vx * dt * 1.2;
-      f.y += f.vy * dt;
-      f.rot += f.vx * dt * 0.8;
-      if(f.y > floor){ f.y = floor; f.vy = -Math.abs(f.vy)*0.42; }
-      f.el.style.transform = `translate3d(${f.x}px, ${-f.y}px,0) rotate(${f.rot}deg)`;
-      // emoji fallback shown as element text if img missing
-      const img = f.el.querySelector('img');
-      if(!img.src && f.el.dataset.type){ /* already set text when spawned */ }
-      if(f.x < -300 || f.x > areaW + 300 || f.y < -800){ try{ release(f.el);}catch(e){} active.splice(i,1); }
-    }
-    drawBlade();
-    requestAnimationFrame(step);
-  }
-
-  // blade visuals (lightweight)
-  let bladePoints=[];
-  function addBladePoint(cx,cy){ const r=gameArea.getBoundingClientRect(); bladePoints.push({x:cx-r.left,y:cy-r.top,t:Date.now()}); if(bladePoints.length>12) bladePoints.shift(); }
-  function drawBlade(){ if(!bladeCtx) return; bladeCtx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height); if(bladePoints.length<2) return; bladeCtx.lineJoin='round'; bladeCtx.lineCap='round'; for(let i=0;i<bladePoints.length-1;i++){ const a=bladePoints[i], b=bladePoints[i+1], age=Date.now()-a.t, alpha=Math.max(0,1-age/420); bladeCtx.strokeStyle = `rgba(34,197,94,${0.9*alpha})`; bladeCtx.lineWidth = 8*alpha+2; bladeCtx.beginPath(); bladeCtx.moveTo(a.x,a.y); bladeCtx.lineTo(b.x,b.y); bladeCtx.stroke(); } bladePoints = bladePoints.filter(p => (Date.now() - p.t) < 520); }
-
-  // pointer & slicing
-  let isDown=false, pointerHistory=[];
-  window.addEventListener('pointerdown', e=>{ isDown=true; pointerHistory=[]; addBladePoint(e.clientX,e.clientY); e.preventDefault && e.preventDefault(); }, {passive:false});
-  window.addEventListener('pointermove', e=>{ if(!isDown) return; addBladePoint(e.clientX,e.clientY); pointerHistory.push({x:e.clientX,y:e.clientY}); if(pointerHistory.length>14) pointerHistory.shift(); if(pointerHistory.length>=2){ const p1=pointerHistory[pointerHistory.length-2], p2=pointerHistory[pointerHistory.length-1]; for(const f of active.slice()){ try{ const r = f.el.getBoundingClientRect(); if(lineIntersectsRect(p1,p2,r)) sliceFruit(f); }catch(e){} } } }, {passive:true});
-  window.addEventListener('pointerup', ()=>{ isDown=false; pointerHistory=[]; bladePoints=[]; });
-  window.addEventListener('pointercancel', ()=>{ isDown=false; pointerHistory=[]; bladePoints=[]; });
-
-  function lineIntersectsRect(p1,p2,rect){
-    if((p1.x < rect.left && p2.x < rect.left) || (p1.x > rect.right && p2.x > rect.right) || (p1.y < rect.top && p2.y < rect.top) || (p1.y > rect.bottom && p2.y > rect.bottom)) return false;
-    return true;
-  }
-
-  function sliceFruit(f){
-    if(!f || f.cut) return; f.cut=true;
-    const type = f.type;
-    if(type === BOMB){ lives = Math.max(0,lives-1); dbg('Bomb sliced. lives=' + lives, 'error'); updateHUD(); if(lives<=0){ endGame(); } release(f.el); const idx = active.indexOf(f); if(idx>=0) active.splice(idx,1); return; }
-    const rect = f.el.getBoundingClientRect();
-    createHalves(rect, type); try{ release(f.el); }catch(e){} const idx = active.indexOf(f); if(idx>=0) active.splice(idx,1);
-    score += 10; coins += 1; updateHUD(); dbg('Fruit sliced: '+type);
-  }
-
-  function createHalves(rect,type){
-    try{
-      const cx = rect.left + rect.width/2 - gameArea.getBoundingClientRect().left;
-      const cy = rect.top + rect.height/2 - gameArea.getBoundingClientRect().top;
-      const wrapper = document.createElement('div'); wrapper.style.position='absolute'; wrapper.style.left=(cx-rect.width/2)+'px'; wrapper.style.bottom = (-(cy-rect.height/2))+'px'; wrapper.style.width = rect.width+'px'; wrapper.style.height = rect.height+'px'; wrapper.style.pointerEvents='none'; wrapper.style.zIndex=980;
-      const left = document.createElement('div'); left.style.position='absolute'; left.style.left='0'; left.style.top='0'; left.style.width='50%'; left.style.height='100%'; left.style.overflow='hidden';
-      const right = document.createElement('div'); right.style.position='absolute'; right.style.right='0'; right.style.top='0'; right.style.width='50%'; right.style.height='100%'; right.style.overflow='hidden';
-      const li = document.createElement('img'); const ri = document.createElement('img');
-      if(CACHE[type]){ li.src = ri.src = CACHE[type].src; } else { left.textContent = right.textContent = emojiFor(type); left.style.display = right.style.display = 'flex'; left.style.alignItems = right.style.alignItems = 'center'; left.style.justifyContent = right.style.justifyContent = 'center'; left.style.fontSize = right.style.fontSize = Math.max(28, Math.floor(rect.width*0.45))+'px'; }
-      li.style.position='absolute'; li.style.left='0'; li.style.width='200%'; li.style.height='100%';
-      ri.style.position='absolute'; ri.style.left='-50%'; ri.style.width='200%'; ri.style.height='100%';
-      left.appendChild(li); right.appendChild(ri); wrapper.appendChild(left); wrapper.appendChild(right); gameArea.appendChild(wrapper);
-      const start = performance.now();
-      const leftVx = -1.8 - Math.random()*1.4, leftVy = 1.8 + Math.random()*1.6, leftRot = -20 - Math.random()*40;
-      const rightVx = 1.8 + Math.random()*1.4, rightVy = 2.0 + Math.random()*1.6, rightRot = 20 + Math.random()*40;
-      (function anim(now){
-        const t = (now - start)/1000;
-        left.style.transform = `translate3d(${leftVx * t * 40}px, ${-leftVy * t * 40 + 0.5*GRAVITY*t*t*40}px,0) rotate(${leftRot * t}deg)`;
-        right.style.transform = `translate3d(${rightVx * t * 40}px, ${-rightVy * t * 40 + 0.5*GRAVITY*t*t*40}px,0) rotate(${rightRot * t}deg)`;
-        const alpha = Math.max(0,1 - t*1.4); left.style.opacity = right.style.opacity = alpha;
-        if(alpha > 0.02) requestAnimationFrame(anim); else if(wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
-      })(performance.now());
-    }catch(e){ dbg('createHalves err: '+e,'error'); }
-  }
-
-  function updateHUD(){ scoreEl.textContent = score; livesEl.textContent = lives; coinsEl.textContent = coins; levelEl.textContent = level; pauseBtn.disabled = !running; }
-
-  function startGame(){ if(running) return; running=true; bigStart.style.display='none'; if(window._spawnTimer) clearInterval(window._spawnTimer); window._spawnTimer = setInterval(spawnOne, SPAWN_INTERVAL); spawnOne(); dbg('Game started'); updateHUD(); }
-  function pauseGame(){ running = !running; if(!running && window._spawnTimer){ clearInterval(window._spawnTimer); window._spawnTimer=null; } if(running && !window._spawnTimer) window._spawnTimer = setInterval(spawnOne, SPAWN_INTERVAL); dbg('Pause toggled: '+running); updateHUD(); }
-  function restartGame(){ for(const f of active.slice()){ try{ if(f.el.parentNode) f.el.parentNode.removeChild(f.el);}catch(e){} } active.length=0; score=0; coins=0; lives=3; level=1; running=false; if(window._spawnTimer){ clearInterval(window._spawnTimer); window._spawnTimer=null; } bigStart.style.display='none'; updateHUD(); dbg('Restarted'); }
-  startBtn && startBtn.addEventListener('click', startGame);
-  pauseBtn && pauseBtn.addEventListener('click', pauseGame);
-  restartBtn && restartBtn.addEventListener('click', restartGame);
-  bigStart && bigStart.addEventListener('click', startGame);
-
-  // init
-  (async function init(){
-    dbg('Script start');
-    for(let i=0;i<6;i++) POOL.push(makeEl());
-    try{ await preload(3000); }catch(e){ dbg('preload failed','error'); }
-    resizeAll();
-    requestAnimationFrame(step);
-    updateHUD();
-    setTimeout(()=>{ if(!running){ dbg('Auto-start fallback'); startGame(); } }, 140);
-  })();
-
+  (async()=>{await preload();resize();requestAnimationFrame(loop);setTimeout(start,200);})();
 })();
 </script>
 </body>
