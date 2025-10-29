@@ -3,97 +3,40 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Final Polished Build</title>
-<style>
-  :root{ --btn:#111; --accent:#22c55e; }
-  body{font-family:Inter,system-ui,Roboto,Arial;margin:12px;background:#f4f7fb;color:#111}
-  .container{max-width:980px;margin:0 auto}
-  .hud{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px}
-  .stat{background:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.04)}
-  #gameWrapper{position:relative;height:520px;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,0.06);background:#e9e6e1}
-  #gameArea{position:absolute;inset:0;touch-action:none}
-  canvas{position:absolute;inset:0;pointer-events:none}
-  .fruit{position:absolute;will-change:transform;z-index:600;pointer-events:none}
-  img.fruit-img{display:block;pointer-events:none;user-select:none}
-  .controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
-  button{padding:8px 12px;border-radius:8px;border:0;background:var(--btn);color:#fff;cursor:pointer;font-weight:600}
-  .ghost{background:#fff;color:#111;border:1px solid #e6e6e6}
-  .debugBox{position:fixed;right:12px;top:12px;z-index:99999;background:rgba(0,0,0,0.85);color:#fff;padding:10px;max-width:360px;font-size:12px;border-radius:8px;line-height:1.25;max-height:60vh;overflow:auto;display:block}
-  .debugLine{font-family:monospace;font-size:12px;margin:2px 0}
-  #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:200;background:rgba(0,0,0,0.85);color:#fff;padding:16px 22px;border-radius:10px;cursor:pointer;display:none}
-</style>
+<title>Fruit Cut — Stable</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="container">
-  <h1>🍉 Fruit Cut — Final Polished</h1>
+  <div class="container">
+    <h1>🍉 Fruit Cut — Stable</h1>
 
-  <div class="hud">
-    <div class="stat">Score: <strong id="scoreEl">0</strong></div>
-    <div class="stat">Lives: <strong id="livesEl">3</strong></div>
-    <div class="stat">Coins: <strong id="coinsEl">0</strong></div>
-    <div class="stat">Level: <strong id="levelEl">1</strong></div>
+    <div class="hud">
+      <div class="stat">Score: <strong id="scoreEl">0</strong></div>
+      <div class="stat">Lives: <strong id="livesEl">3</strong></div>
+      <div class="stat">Coins: <strong id="coinsEl">0</strong></div>
+      <div style="flex:1"></div>
+      <div class="stat">Level: <strong id="levelEl">1</strong></div>
+    </div>
+
+    <div id="gameWrapper">
+      <div id="gameArea" aria-label="Game area — swipe to cut fruits"></div>
+      <canvas id="splatCanvas" class="layer"></canvas>
+      <canvas id="bladeCanvas" class="layer"></canvas>
+      <div id="bigStart">START</div>
+    </div>
+
+    <div class="controls">
+      <button id="startBtn" class="ghost">Start</button>
+      <button id="pauseBtn" class="ghost" disabled>Pause</button>
+      <button id="restartBtn" class="ghost">Restart</button>
+      <button id="toggleConsole" class="ghost">Toggle Console</button>
+    </div>
+
+    <p class="tip">Tip: Slice fruits by swiping. Avoid bombs 💣</p>
   </div>
 
-  <div id="gameWrapper">
-    <div id="gameArea"></div>
-    <canvas id="splatCanvas" style="z-index:40"></canvas>
-    <canvas id="bladeCanvas" style="z-index:900"></canvas>
-    <div id="bigStart">START</div>
-  </div>
+  <div id="debug" class="debugBox" aria-hidden="false"></div>
 
-  <div class="controls">
-    <button id="startBtn" class="ghost">Start</button>
-    <button id="pauseBtn" class="ghost" disabled>Pause</button>
-    <button id="restartBtn" class="ghost">Restart</button>
-    <button id="toggleConsole" class="ghost">Toggle Console</button>
-  </div>
-</div>
-
-<div id="debug" class="debugBox"></div>
-
-<script>
-(function(){
-  const debugBox=document.getElementById('debug');
-  function dbg(m,l='log'){const t=new Date().toLocaleTimeString();const d=document.createElement('div');d.className='debugLine';d.textContent='['+t+'] '+m;if(l==='error')d.style.color='#f88';debugBox.appendChild(d);while(debugBox.childElementCount>120)debugBox.removeChild(debugBox.firstChild);(console[l]||console.log)('[FruitCut]',m);}
-  document.getElementById('toggleConsole').onclick=()=>debugBox.style.display=debugBox.style.display==='none'?'block':'none';
-  (function(){try{const s=document.createElement('script');s.src='https://cdn.jsdelivr.net/npm/eruda';s.onload=()=>{try{eruda.init();dbg('eruda loaded');}catch(e){dbg('eruda init fail:'+e,'error')}};document.head.appendChild(s);}catch(e){dbg('eruda err:'+e,'error')}})();
-
-  const gameArea=document.getElementById('gameArea');
-  const bladeCanvas=document.getElementById('bladeCanvas');
-  const splatCanvas=document.getElementById('splatCanvas');
-  const scoreEl=document.getElementById('scoreEl'),livesEl=document.getElementById('livesEl'),coinsEl=document.getElementById('coinsEl');
-  const startBtn=document.getElementById('startBtn'),pauseBtn=document.getElementById('pauseBtn'),restartBtn=document.getElementById('restartBtn');
-  const GRAVITY=0.18,SPAWN_INTERVAL=1800,MAX_ACTIVE=5;
-  const IMGS=["apple.png","banana.png","mango.png","orange.png","watermelon.png","strawberry.png","pineapple.png","papaya.png","pomegranate.png"],BOMB="bomb.png",ALL=IMGS.concat([BOMB]);
-  let score=0,lives=3,coins=0,running=false;const active=[],CACHE={};
-  let areaW=480,areaH=520,bladeCtx=bladeCanvas.getContext('2d'),splatCtx=splatCanvas.getContext('2d');
-  function resize(){const r=gameArea.getBoundingClientRect();areaW=r.width;areaH=r.height;bladeCanvas.width=areaW;bladeCanvas.height=areaH;splatCanvas.width=areaW;splatCanvas.height=areaH;}window.addEventListener('resize',resize);setTimeout(resize,80);
-
-  async function preload(t=3000){dbg('Preload start');const ps=ALL.map(n=>new Promise(r=>{const i=new Image();i.onload=()=>{CACHE[n]=i;dbg('ok:'+n);r(1)};i.onerror=()=>{dbg('fail:'+n);r(0)};i.src='images/'+n;}));await Promise.race([Promise.all(ps),new Promise(r=>setTimeout(r, t))]);dbg('Preload done');}
-
-  function emojiFor(n){n=n||'';if(n.includes('apple'))return'🍎';if(n.includes('banana'))return'🍌';if(n.includes('mango'))return'🥭';if(n.includes('orange'))return'🍊';if(n.includes('watermelon'))return'🍉';if(n.includes('strawberry'))return'🍓';if(n.includes('pineapple'))return'🍍';if(n.includes('papaya'))return'🟠';if(n.includes('pomegranate'))return'🔴';if(n.includes('bomb'))return'💣';return'🍇';}
-
-  function spawn(){if(!running)return;if(active.length>=MAX_ACTIVE)return;const isBomb=Math.random()<0.07;const name=isBomb?BOMB:IMGS[Math.floor(Math.random()*IMGS.length)];const el=document.createElement('div');el.className='fruit';const img=document.createElement('img');img.className='fruit-img';const w=Math.max(44,Math.min(88,areaW*0.09));if(CACHE[name]){img.src=CACHE[name].src;img.style.width=w+'px';img.style.height='auto';}else{img.remove();el.textContent=emojiFor(name);el.style.fontSize=w+'px';}el.dataset.type=name;el.style.left=Math.random()*(areaW-w)+'px';el.style.bottom='-20px';el.appendChild(img);gameArea.appendChild(el);active.push({el,x:parseFloat(el.style.left),y:-20,vx:(Math.random()-0.5)*1.2,vy:7+Math.random(),rot:0,type:name,cut:false});}
-
-  let last=performance.now();function loop(now){const dt=(now-last)/16.6;last=now;for(let i=active.length-1;i>=0;i--){const f=active[i];f.vy-=GRAVITY*dt;f.x+=f.vx*dt*1.2;f.y+=f.vy*dt;f.rot+=f.vx*dt;f.el.style.transform=`translate3d(${f.x}px,${-f.y}px,0)rotate(${f.rot}deg)`;if(f.y>areaH-32){f.vy=-Math.abs(f.vy)*0.4;}if(f.x<-300||f.x>areaW+300||f.y<-600){gameArea.removeChild(f.el);active.splice(i,1);}}drawBlade();drawJuice();requestAnimationFrame(loop);}
-  const juice=[];function addJuice(x,y,c){juice.push({x,y,c,a:1});}
-  function drawJuice(){if(!splatCtx)return;splatCtx.clearRect(0,0,splatCanvas.width,splatCanvas.height);for(let i=juice.length-1;i>=0;i--){const j=juice[i];splatCtx.beginPath();splatCtx.fillStyle=`rgba(${j.c.r},${j.c.g},${j.c.b},${j.a})`;splatCtx.arc(j.x,j.y,10,0,Math.PI*2);splatCtx.fill();j.a-=0.04;if(j.a<=0)juice.splice(i,1);}}
-
-  let bladePts=[];function addBlade(x,y){const r=gameArea.getBoundingClientRect();bladePts.push({x:x-r.left,y:y-r.top,t:Date.now()});if(bladePts.length>12)bladePts.shift();}
-  function drawBlade(){bladeCtx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height);for(let i=0;i<bladePts.length-1;i++){const a=bladePts[i],b=bladePts[i+1],age=Date.now()-a.t,al=Math.max(0,1-age/420);bladeCtx.strokeStyle=`rgba(34,197,94,${0.9*al})`;bladeCtx.lineWidth=6*al+2;bladeCtx.beginPath();bladeCtx.moveTo(a.x,a.y);bladeCtx.lineTo(b.x,b.y);bladeCtx.stroke();}}
-
-  function colorFor(n){n=n||'';if(n.includes('apple'))return{r:220,g:50,b:60};if(n.includes('banana'))return{r:240,g:210,b:60};if(n.includes('orange'))return{r:245,g:140,b:40};if(n.includes('mango'))return{r:255,g:160,b:40};if(n.includes('strawberry'))return{r:230,g:80,b:90};if(n.includes('pineapple'))return{r:245,g:180,b:70};return{r:240,g:120,b:100};}
-
-  function slice(f){if(f.cut)return;f.cut=true;if(f.type===BOMB){lives--;dbg('Bomb! Lives:'+lives,'error');if(lives<=0)running=false;}else{score+=10;coins++;const r=f.el.getBoundingClientRect(),x=r.left+r.width/2-gameArea.getBoundingClientRect().left,y=r.top+r.height/2-gameArea.getBoundingClientRect().top;addJuice(x,y,colorFor(f.type));dbg('Slice '+f.type);}gameArea.removeChild(f.el);active.splice(active.indexOf(f),1);}
-  window.addEventListener('pointerdown',e=>{addBlade(e.clientX,e.clientY);isDown=true;});
-  window.addEventListener('pointermove',e=>{if(!isDown)return;addBlade(e.clientX,e.clientY);for(const f of active){const r=f.el.getBoundingClientRect();if(e.clientX>r.left&&e.clientX<r.right&&e.clientY>r.top&&e.clientY<r.bottom)slice(f);}});
-  window.addEventListener('pointerup',()=>isDown=false);
-
-  function start(){if(running)return;running=true;setInterval(spawn,SPAWN_INTERVAL);dbg('Game started');}
-  startBtn.onclick=start;pauseBtn.onclick=()=>running=!running;restartBtn.onclick=()=>{location.reload();};
-
-  (async()=>{await preload();resize();requestAnimationFrame(loop);setTimeout(start,200);})();
-})();
-</script>
+  <script src="js/game.js"></script>
 </body>
-  </html>
+</html>
