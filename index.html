@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Robust Fallback Build</title>
+<title>Fruit Cut — Stable Build</title>
 <style>
   :root{ --btn:#111; --btnHover:#333; --accent:#22c55e; }
   body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,Helvetica;margin:12px;background:#f4f7fb;color:#111}
@@ -27,7 +27,7 @@
 </head>
 <body>
 <div class="container">
-  <h1>🍉 Fruit Cut — Robust Fallback</h1>
+  <h1>🍉 Fruit Cut — Stable Build</h1>
 
   <div class="hud">
     <div class="stat">Score: <strong id="scoreEl">0</strong></div>
@@ -57,31 +57,19 @@
 <div id="debug" class="debugBox"></div>
 
 <script>
-/* Robust single-file runner with image fallback (emoji) */
+/* Stable Fruit Cut — key changes:
+   - preload timeout 3000ms
+   - spawn interval slower (1800ms)
+   - smaller fruit, spawn from bottom
+   - logs missing images explicitly
+*/
 (function(){
   const debugBox = document.getElementById('debug');
-  function dbg(msg, level='log'){
-    const time=new Date().toLocaleTimeString();
-    const d=document.createElement('div'); d.className='debugLine'; d.textContent='['+time+'] '+msg;
-    if(level==='error') d.style.color='#ffbbbb';
-    debugBox.appendChild(d);
-    while(debugBox.childElementCount>150) debugBox.removeChild(debugBox.firstChild);
-    (console[level]||console.log)('[FruitCut]',msg);
-  }
-  document.getElementById('toggleConsole').addEventListener('click', ()=> {
-    debugBox.style.display = debugBox.style.display === 'none' ? 'block' : 'none';
-  });
+  function dbg(msg, lvl='log'){ const time=new Date().toLocaleTimeString(); const d=document.createElement('div'); d.className='debugLine'; d.textContent='['+time+'] '+msg; if(lvl==='error') d.style.color='#ffbbbb'; debugBox.appendChild(d); while(debugBox.childElementCount>150) debugBox.removeChild(debugBox.firstChild); (console[lvl]||console.log)('[FruitCut]',msg); }
+  document.getElementById('toggleConsole').addEventListener('click', ()=> { debugBox.style.display = debugBox.style.display==='none' ? 'block' : 'none'; });
 
-  // attempt to load eruda (non-blocking)
-  (function(){
-    try{
-      const s=document.createElement('script');
-      s.src='https://cdn.jsdelivr.net/npm/eruda';
-      s.onload=function(){ try{ eruda.init(); dbg('eruda loaded'); }catch(e){ dbg('eruda init fail: '+e,'error'); } };
-      s.onerror=function(){ dbg('eruda failed to load'); };
-      document.head.appendChild(s);
-    }catch(e){ dbg('eruda injection error: '+e,'error'); }
-  })();
+  // try load eruda (non-blocking)
+  (function(){ try{ const s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/eruda'; s.onload=function(){ try{ eruda.init(); dbg('eruda loaded'); }catch(e){ dbg('eruda init failed: '+e,'error'); } }; s.onerror=function(){ dbg('eruda failed to load'); }; document.head.appendChild(s); }catch(e){ dbg('eruda injection error: '+e,'error'); } })();
 
   // DOM
   const gameArea = document.getElementById('gameArea');
@@ -96,70 +84,69 @@
   const restartBtn = document.getElementById('restartBtn');
   const bigStart = document.getElementById('bigStart');
 
-  if(!gameArea){ dbg('No #gameArea found — abort','error'); return; }
+  if(!gameArea){ dbg('No #gameArea — abort','error'); return; }
 
   // config
   const IMAGE_LIST = ["apple.png","banana.png","mango.png","orange.png","watermelon.png","strawberry.png","pineapple.png","papaya.png","pomegranate.png"];
-  const BOMB = "bomb.png";
-  const ALL_IMAGES = IMAGE_LIST.concat([BOMB]);
+  const BOMB = "bomb.png"; const ALL = IMAGE_LIST.concat([BOMB]);
   const GRAVITY = 0.18;
-  let SPAWN_INTERVAL = 1300;
-  const MAX_ACTIVE = 6;
+  let SPAWN_INTERVAL = 1800; // slower for smoothness
+  const MAX_ACTIVE = 5;
 
   // state
   let score=0, lives=3, coins=0, level=1, running=false;
-  const active=[]; const POOL=[]; const CACHE={};
-  let areaW=480, areaH=520;
-  let bladeCtx = bladeCanvas.getContext('2d'), splatCtx = splatCanvas.getContext('2d');
+  const active=[], POOL=[], CACHE={};
+  let areaW=480, areaH=520, bladeCtx=bladeCanvas.getContext('2d'), splatCtx=splatCanvas.getContext('2d');
 
-  function resizeAll(){ const r=gameArea.getBoundingClientRect(); areaW=Math.max(1,Math.floor(r.width)); areaH=Math.max(1,Math.floor(r.height)); bladeCanvas.width=areaW; bladeCanvas.height=areaH; splatCanvas.width=areaW; splatCanvas.height=areaH; bladeCtx = bladeCanvas.getContext('2d'); splatCtx = splatCanvas.getContext('2d'); dbg('Area size: '+areaW+'x'+areaH); }
-  window.addEventListener('resize', resizeAll); setTimeout(resizeAll,60);
+  function resizeAll(){ const r=gameArea.getBoundingClientRect(); areaW=Math.max(1,Math.floor(r.width)); areaH=Math.max(1,Math.floor(r.height)); bladeCanvas.width=areaW; bladeCanvas.height=areaH; splatCanvas.width=areaW; splatCanvas.height=areaH; bladeCtx=bladeCanvas.getContext('2d'); splatCtx=splatCanvas.getContext('2d'); dbg('Area size: '+areaW+'x'+areaH); }
+  window.addEventListener('resize', resizeAll); setTimeout(resizeAll,80);
 
-  // preload with timeout; but if images missing we fallback
-  async function preload(timeoutMs=1200){
-    dbg('Preloading images (timeout '+timeoutMs+'ms)...');
-    const promises = ALL_IMAGES.map(name => new Promise(res=>{
+  // preload images with higher timeout
+  async function preload(timeoutMs=3000){
+    dbg('preloading images (timeout '+timeoutMs+'ms)...');
+    const tasks = ALL.map(name => new Promise(res=>{
       try{
-        const img=new Image();
+        const img = new Image();
         img.onload = ()=> { CACHE[name]=img; dbg('loaded '+name); res({name,ok:true}); };
         img.onerror = ()=> { dbg('failed: '+name); res({name,ok:false}); };
         img.src = 'images/' + name;
       }catch(e){ dbg('preload err '+name+': '+e,'error'); res({name,ok:false}); }
     }));
-    const allP = Promise.all(promises);
-    const timed = new Promise(r=>setTimeout(()=>r('__timeout__'), timeoutMs));
-    const res = await Promise.race([allP, timed]);
-    if(res === '__timeout__'){ dbg('preload timed out — continuing'); try{ await allP; }catch(e){} }
-    dbg('Preload finished');
+    const all = Promise.all(tasks);
+    const t = new Promise(r=>setTimeout(()=>r('__timeout__'), timeoutMs));
+    const result = await Promise.race([all,t]);
+    if(result === '__timeout__'){ dbg('preload timed out — continuing'); try{ await all; }catch(e){} }
+    // report missing
+    const missing = ALL.filter(n => !CACHE[n]);
+    if(missing.length) dbg('Missing images: ' + missing.join(', '), 'error');
+    else dbg('All images loaded or available');
   }
 
-  // pool helpers
-  function makeEl(){ const el=document.createElement('div'); el.className='fruit'; el.style.position='absolute'; const img=document.createElement('img'); img.className='fruit-img'; img.draggable=false; el.appendChild(img); return el; }
+  // element pool
+  function makeEl(){ const el=document.createElement('div'); el.className='fruit'; el.style.position='absolute'; const img=document.createElement('img'); img.className='fruit-img'; img.draggable=false; img.style.display='block'; el.appendChild(img); return el; }
   function acquire(){ return POOL.length?POOL.pop():makeEl(); }
-  function release(el){ try{ const img = el.querySelector('img'); if(img) img.src=''; if(el.parentNode) el.parentNode.removeChild(el); POOL.push(el); }catch(e){ dbg('release error: '+e,'error'); } }
+  function release(el){ try{ const img = el.querySelector('img'); if(img) img.src=''; if(el.parentNode) el.parentNode.removeChild(el); POOL.push(el); }catch(e){ dbg('release err:'+e,'error'); } }
 
-  // spawn logic (from bottom, slower)
-  function spawn(){
+  // spawn from bottom, slower
+  function spawnOne(){
     if(!running) return;
     if(active.length >= MAX_ACTIVE) return;
     const isBomb = Math.random() < 0.07;
     const name = isBomb ? BOMB : IMAGE_LIST[Math.floor(Math.random()*IMAGE_LIST.length)];
     const el = acquire(); const img = el.querySelector('img');
-    const desiredW = Math.max(44, Math.min(92, Math.floor(areaW * 0.10)));
-    if(CACHE[name]){ img.src = CACHE[name].src; img.style.width = desiredW + 'px'; img.style.height = 'auto'; el.style.width = img.style.width; el.style.height = img.style.height; }
-    else { // fallback: emoji draw on canvas
-      img.src = ''; img.style.width = desiredW + 'px'; img.style.height = 'auto'; el.style.width = img.style.width; el.style.height = img.style.height;
-      el.dataset.emoji = emojiFor(name);
+    const targetW = Math.max(44, Math.min(92, Math.floor(areaW*0.09)));
+    if(CACHE[name]){ img.src = CACHE[name].src; img.style.width = targetW + 'px'; img.style.height = 'auto'; el.style.width = img.style.width; el.style.height = img.style.height; el.textContent=''; }
+    else { // fallback emoji
+      img.src=''; el.textContent = emojiFor(name); el.style.fontSize = Math.max(28, Math.floor(targetW*0.9)) + 'px'; el.style.width = targetW + 'px'; el.style.height = (targetW) + 'px';
     }
-    const x = Math.floor(Math.random() * Math.max(1, areaW - desiredW - 30)) + 15;
-    const y = -30;
-    el.style.left = x + 'px'; el.style.bottom = y + 'px';
-    el.dataset.type = name;
+    const x = Math.floor(Math.random() * Math.max(1, areaW - targetW - 20)) + 10;
+    const startY = -28;
+    el.style.left = x + 'px'; el.style.bottom = startY + 'px'; el.dataset.type = name;
     gameArea.appendChild(el);
-    const vx = (Math.random()-0.5) * 1.4;
-    const vy = 7.5 + Math.random()*1.6; // slower upward speed
-    const rot = (Math.random()-0.5) * 18;
-    active.push({el, x, y, vx, vy, rot, type:name, cut:false, w:desiredW});
+    const vx = (Math.random()-0.5) * 1.2;
+    const vy = 7.0 + Math.random()*1.0; // slower
+    const rot = (Math.random()-0.5) * 20;
+    active.push({el, x, y:startY, vx, vy, rot, type:name, cut:false, w:targetW});
   }
 
   function emojiFor(name){
@@ -171,7 +158,7 @@
     if(name.includes('watermelon')) return '🍉';
     if(name.includes('strawberry')) return '🍓';
     if(name.includes('pineapple')) return '🍍';
-    if(name.includes('papaya')) return '🫐';
+    if(name.includes('papaya')) return '🟠';
     if(name.includes('pomegranate')) return '🔴';
     if(name.includes('bomb')) return '💣';
     return '🍇';
@@ -186,44 +173,27 @@
       const f = active[i];
       f.vy -= GRAVITY * dt;
       f.x += f.vx * dt * 1.2;
-      f.y += f.vy * dt * 1.0;
+      f.y += f.vy * dt;
       f.rot += f.vx * dt * 0.8;
-      if(f.y > floor){ f.y = floor; f.vy = -Math.abs(f.vy)*0.38; }
-      // apply transform
-      const tx = f.x, ty = -f.y;
-      f.el.style.transform = `translate3d(${tx}px, ${ty}px,0) rotate(${f.rot}deg)`;
-      // emoji fallback: if no img src, draw emoji into element
+      if(f.y > floor){ f.y = floor; f.vy = -Math.abs(f.vy)*0.42; }
+      f.el.style.transform = `translate3d(${f.x}px, ${-f.y}px,0) rotate(${f.rot}deg)`;
+      // emoji fallback shown as element text if img missing
       const img = f.el.querySelector('img');
-      if(!img.src && f.el.dataset.emoji){
-        if(!f._emojiDrawn){ f.el.textContent = f.el.dataset.emoji; f._emojiDrawn=true; f.el.style.fontSize = Math.max(28, Math.floor(f.w*0.9))+'px'; }
-      }
+      if(!img.src && f.el.dataset.type){ /* already set text when spawned */ }
       if(f.x < -300 || f.x > areaW + 300 || f.y < -800){ try{ release(f.el);}catch(e){} active.splice(i,1); }
     }
-    drawSplats(); drawBlade();
+    drawBlade();
     requestAnimationFrame(step);
-  }
-
-  function drawSplats(){ if(!splatCtx) return; // fading overlay to simulate juice
-    splatCtx.clearRect(0,0,splatCanvas.width,splatCanvas.height);
   }
 
   // blade visuals (lightweight)
   let bladePoints=[];
   function addBladePoint(cx,cy){ const r=gameArea.getBoundingClientRect(); bladePoints.push({x:cx-r.left,y:cy-r.top,t:Date.now()}); if(bladePoints.length>12) bladePoints.shift(); }
-  function drawBlade(){
-    if(!bladeCtx) return; bladeCtx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height);
-    if(bladePoints.length<2) return;
-    bladeCtx.lineJoin = 'round'; bladeCtx.lineCap='round';
-    for(let i=0;i<bladePoints.length-1;i++){
-      const a=bladePoints[i], b=bladePoints[i+1]; const age=Date.now()-a.t; const alpha=Math.max(0,1-age/420);
-      bladeCtx.strokeStyle = `rgba(34,197,94,${0.9*alpha})`; bladeCtx.lineWidth = 8*alpha+2; bladeCtx.beginPath(); bladeCtx.moveTo(a.x,a.y); bladeCtx.lineTo(b.x,b.y); bladeCtx.stroke();
-    }
-    bladePoints = bladePoints.filter(p => (Date.now() - p.t) < 520);
-  }
+  function drawBlade(){ if(!bladeCtx) return; bladeCtx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height); if(bladePoints.length<2) return; bladeCtx.lineJoin='round'; bladeCtx.lineCap='round'; for(let i=0;i<bladePoints.length-1;i++){ const a=bladePoints[i], b=bladePoints[i+1], age=Date.now()-a.t, alpha=Math.max(0,1-age/420); bladeCtx.strokeStyle = `rgba(34,197,94,${0.9*alpha})`; bladeCtx.lineWidth = 8*alpha+2; bladeCtx.beginPath(); bladeCtx.moveTo(a.x,a.y); bladeCtx.lineTo(b.x,b.y); bladeCtx.stroke(); } bladePoints = bladePoints.filter(p => (Date.now() - p.t) < 520); }
 
-  // pointer handling & slicing
-  let isDown=false; let pointerHistory=[];
-  window.addEventListener('pointerdown', e=>{ isDown=true; pointerHistory=[]; addBladePoint(e.clientX,e.clientY); e.preventDefault && e.preventDefault(); });
+  // pointer & slicing
+  let isDown=false, pointerHistory=[];
+  window.addEventListener('pointerdown', e=>{ isDown=true; pointerHistory=[]; addBladePoint(e.clientX,e.clientY); e.preventDefault && e.preventDefault(); }, {passive:false});
   window.addEventListener('pointermove', e=>{ if(!isDown) return; addBladePoint(e.clientX,e.clientY); pointerHistory.push({x:e.clientX,y:e.clientY}); if(pointerHistory.length>14) pointerHistory.shift(); if(pointerHistory.length>=2){ const p1=pointerHistory[pointerHistory.length-2], p2=pointerHistory[pointerHistory.length-1]; for(const f of active.slice()){ try{ const r = f.el.getBoundingClientRect(); if(lineIntersectsRect(p1,p2,r)) sliceFruit(f); }catch(e){} } } }, {passive:true});
   window.addEventListener('pointerup', ()=>{ isDown=false; pointerHistory=[]; bladePoints=[]; });
   window.addEventListener('pointercancel', ()=>{ isDown=false; pointerHistory=[]; bladePoints=[]; });
@@ -236,16 +206,12 @@
   function sliceFruit(f){
     if(!f || f.cut) return; f.cut=true;
     const type = f.type;
-    if(type === BOMB){ lives = Math.max(0, lives-1); dbg('Bomb sliced. lives=' + lives, 'error'); updateHUD(); if(lives<=0){ endGame(); } release(f.el); const idx = active.indexOf(f); if(idx>=0) active.splice(idx,1); return; }
-    // add simple juice effect (splat) and halves simulation
+    if(type === BOMB){ lives = Math.max(0,lives-1); dbg('Bomb sliced. lives=' + lives, 'error'); updateHUD(); if(lives<=0){ endGame(); } release(f.el); const idx = active.indexOf(f); if(idx>=0) active.splice(idx,1); return; }
     const rect = f.el.getBoundingClientRect();
-    createHalves(rect, type);
-    try{ release(f.el); }catch(e){}
-    const idx = active.indexOf(f); if(idx>=0) active.splice(idx,1);
+    createHalves(rect, type); try{ release(f.el); }catch(e){} const idx = active.indexOf(f); if(idx>=0) active.splice(idx,1);
     score += 10; coins += 1; updateHUD(); dbg('Fruit sliced: '+type);
   }
 
-  // halves animation (simple)
   function createHalves(rect,type){
     try{
       const cx = rect.left + rect.width/2 - gameArea.getBoundingClientRect().left;
@@ -254,13 +220,10 @@
       const left = document.createElement('div'); left.style.position='absolute'; left.style.left='0'; left.style.top='0'; left.style.width='50%'; left.style.height='100%'; left.style.overflow='hidden';
       const right = document.createElement('div'); right.style.position='absolute'; right.style.right='0'; right.style.top='0'; right.style.width='50%'; right.style.height='100%'; right.style.overflow='hidden';
       const li = document.createElement('img'); const ri = document.createElement('img');
-      if(CACHE[type]){ li.src = ri.src = CACHE[type].src; }
-      else { li.src = ri.src = ''; left.textContent = right.textContent = emojiFor(type); left.style.fontSize = right.style.fontSize = Math.max(28, Math.floor(rect.width*0.45))+'px'; left.style.display = right.style.display = 'flex'; left.style.alignItems = right.style.alignItems = 'center'; left.style.justifyContent = right.style.justifyContent = 'center'; }
+      if(CACHE[type]){ li.src = ri.src = CACHE[type].src; } else { left.textContent = right.textContent = emojiFor(type); left.style.display = right.style.display = 'flex'; left.style.alignItems = right.style.alignItems = 'center'; left.style.justifyContent = right.style.justifyContent = 'center'; left.style.fontSize = right.style.fontSize = Math.max(28, Math.floor(rect.width*0.45))+'px'; }
       li.style.position='absolute'; li.style.left='0'; li.style.width='200%'; li.style.height='100%';
       ri.style.position='absolute'; ri.style.left='-50%'; ri.style.width='200%'; ri.style.height='100%';
-      left.appendChild(li); right.appendChild(ri); wrapper.appendChild(left); wrapper.appendChild(right);
-      gameArea.appendChild(wrapper);
-      // animate halves
+      left.appendChild(li); right.appendChild(ri); wrapper.appendChild(left); wrapper.appendChild(right); gameArea.appendChild(wrapper);
       const start = performance.now();
       const leftVx = -1.8 - Math.random()*1.4, leftVy = 1.8 + Math.random()*1.6, leftRot = -20 - Math.random()*40;
       const rightVx = 1.8 + Math.random()*1.4, rightVy = 2.0 + Math.random()*1.6, rightRot = 20 + Math.random()*40;
@@ -269,23 +232,15 @@
         left.style.transform = `translate3d(${leftVx * t * 40}px, ${-leftVy * t * 40 + 0.5*GRAVITY*t*t*40}px,0) rotate(${leftRot * t}deg)`;
         right.style.transform = `translate3d(${rightVx * t * 40}px, ${-rightVy * t * 40 + 0.5*GRAVITY*t*t*40}px,0) rotate(${rightRot * t}deg)`;
         const alpha = Math.max(0,1 - t*1.4); left.style.opacity = right.style.opacity = alpha;
-        if(alpha > 0.02) requestAnimationFrame(anim);
-        else if(wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+        if(alpha > 0.02) requestAnimationFrame(anim); else if(wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
       })(performance.now());
     }catch(e){ dbg('createHalves err: '+e,'error'); }
   }
 
-  // HUD
   function updateHUD(){ scoreEl.textContent = score; livesEl.textContent = lives; coinsEl.textContent = coins; levelEl.textContent = level; pauseBtn.disabled = !running; }
 
-  function startGame(){
-    if(running) return;
-    running = true; bigStart.style.display='none';
-    if(window._spawnTimer) clearInterval(window._spawnTimer);
-    window._spawnTimer = setInterval(spawn, SPAWN_INTERVAL);
-    spawn(); dbg('Game started');
-  }
-  function pauseGame(){ running = !running; if(!running && window._spawnTimer){ clearInterval(window._spawnTimer); window._spawnTimer = null; } if(running && !window._spawnTimer) window._spawnTimer = setInterval(spawn, SPAWN_INTERVAL); updateHUD(); dbg('Pause toggled: '+running); }
+  function startGame(){ if(running) return; running=true; bigStart.style.display='none'; if(window._spawnTimer) clearInterval(window._spawnTimer); window._spawnTimer = setInterval(spawnOne, SPAWN_INTERVAL); spawnOne(); dbg('Game started'); updateHUD(); }
+  function pauseGame(){ running = !running; if(!running && window._spawnTimer){ clearInterval(window._spawnTimer); window._spawnTimer=null; } if(running && !window._spawnTimer) window._spawnTimer = setInterval(spawnOne, SPAWN_INTERVAL); dbg('Pause toggled: '+running); updateHUD(); }
   function restartGame(){ for(const f of active.slice()){ try{ if(f.el.parentNode) f.el.parentNode.removeChild(f.el);}catch(e){} } active.length=0; score=0; coins=0; lives=3; level=1; running=false; if(window._spawnTimer){ clearInterval(window._spawnTimer); window._spawnTimer=null; } bigStart.style.display='none'; updateHUD(); dbg('Restarted'); }
   startBtn && startBtn.addEventListener('click', startGame);
   pauseBtn && pauseBtn.addEventListener('click', pauseGame);
@@ -296,12 +251,11 @@
   (async function init(){
     dbg('Script start');
     for(let i=0;i<6;i++) POOL.push(makeEl());
-    try{ await preload(1200); }catch(e){ dbg('preload error','error'); }
+    try{ await preload(3000); }catch(e){ dbg('preload failed','error'); }
     resizeAll();
     requestAnimationFrame(step);
     updateHUD();
-    // auto-start after short delay (ensures debug visible)
-    setTimeout(()=>{ if(!running){ dbg('Auto-start fallback'); startGame(); } }, 120);
+    setTimeout(()=>{ if(!running){ dbg('Auto-start fallback'); startGame(); } }, 140);
   })();
 
 })();
