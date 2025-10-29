@@ -1,14 +1,34 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Stable</title>
-<link rel="stylesheet" href="style.css">
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Fruit Cut — Final</title>
+  <link rel="stylesheet" href="css/style.css">
+  <!-- USER IMAGE LIST — put this BEFORE js/game.js so script picks your images -->
+  <script>
+    window.USER_IMGS = [
+      "apple.png",
+      "banana.png",
+      "cantaloupe.png",
+      "guava.png",
+      "mango.png",
+      "orange.png",
+      "papaya.png",
+      "pear.png",
+      "pineapple.png",
+      "plum.png",
+      "pomegranate.png",
+      "strawberry.png",
+      "watermelon.png"
+    ];
+    window.USER_BOMB = "bomb.png";
+  </script>
+  <!-- Optional: Eruda console (mobile debug). It will load only if toggled by game. -->
 </head>
 <body>
   <div class="container">
-    <h1>🍉 Fruit Cut — Stable</h1>
+    <h1>🍉 Fruit Cut — Final</h1>
 
     <div class="hud">
       <div class="stat">Score: <strong id="scoreEl">0</strong></div>
@@ -20,22 +40,24 @@
 
     <div id="gameWrapper">
       <div id="gameArea" aria-label="Game area — swipe to cut fruits"></div>
-      <canvas id="splatCanvas" class="layer"></canvas>
-      <canvas id="bladeCanvas" class="layer"></canvas>
-      <div id="bigStart">START</div>
+      <canvas id="bladeCanvas"></canvas>
+      <canvas id="splatCanvas" style="pointer-events:none"></canvas>
+
+      <div id="bigStart" class="bigStart">START</div>
+
+      <!-- debug console overlay (hidden by default) -->
+      <div id="debug" class="debug" aria-hidden="true"></div>
     </div>
 
     <div class="controls">
-      <button id="startBtn" class="ghost">Start</button>
-      <button id="pauseBtn" class="ghost" disabled>Pause</button>
-      <button id="restartBtn" class="ghost">Restart</button>
-      <button id="toggleConsole" class="ghost">Toggle Console</button>
+      <button id="startBtn" class="btn ghost">Start</button>
+      <button id="pauseBtn" class="btn ghost" disabled>Pause</button>
+      <button id="restartBtn" class="btn ghost">Restart</button>
+      <button id="consoleBtn" class="btn ghost">Toggle Console</button>
     </div>
 
-    <p class="tip">Tip: Slice fruits by swiping. Avoid bombs 💣</p>
+    <p class="tip">Tip: Slice fruits by swiping. Cut combos — avoid bombs. Keep images in <code>images/</code> folder.</p>
   </div>
-
-  <div id="debug" class="debugBox" aria-hidden="false"></div>
 
   <script src="js/game.js"></script>
 </body>
