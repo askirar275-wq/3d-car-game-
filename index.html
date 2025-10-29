@@ -1,9 +1,9 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Fruit Cut — Robust Build (Debug Enabled)</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Fruit Cut — Robust AutoStart + Eruda</title>
 <style>
   :root{ --btn:#111; --btnHover:#333; --accent:#22c55e; }
   body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,Helvetica;margin:12px;background:#f4f7fb;color:#111}
@@ -19,15 +19,15 @@
   .controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
   button{padding:8px 12px;border-radius:8px;border:0;background:var(--btn);color:#fff;cursor:pointer;font-weight:600}
   .ghost{background:#fff;color:#111;border:1px solid #e6e6e6;padding:8px 12px;border-radius:8px}
-  .debugBox{position:fixed;right:12px;top:12px;z-index:99999;background:rgba(0,0,0,0.85);color:#fff;padding:10px;max-width:36%;font-size:12px;border-radius:8px;line-height:1.25;max-height:60vh;overflow:auto}
+  .debugBox{position:fixed;right:12px;top:12px;z-index:99999;background:rgba(0,0,0,0.85);color:#fff;padding:10px;max-width:36%;font-size:12px;border-radius:8px;line-height:1.25;max-height:60vh;overflow:auto;display:none}
   .debugLine{font-family:monospace;font-size:12px;margin:2px 0}
-  #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:200;background:rgba(0,0,0,0.85);color:#fff;padding:16px 22px;border-radius:10px;cursor:pointer}
+  #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:200;background:rgba(0,0,0,0.85);color:#fff;padding:16px 22px;border-radius:10px;cursor:pointer;display:none}
   @media (max-width:700px){ #gameWrapper{height:420px} .debugBox{display:block;left:6px;right:6px;max-width:unset} }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🍉 Fruit Cut — Debug Build</h1>
+  <h1>🍉 Fruit Cut — Robust AutoStart</h1>
 
   <div class="hud">
     <div class="stat">Score: <strong id="scoreEl">0</strong></div>
@@ -41,7 +41,6 @@
     <div id="gameArea" aria-label="Game area — swipe to cut fruits"></div>
     <canvas id="splatCanvas" style="z-index:40"></canvas>
     <canvas id="bladeCanvas" style="z-index:900"></canvas>
-
     <div id="bigStart">START</div>
   </div>
 
@@ -52,55 +51,39 @@
     <button id="consoleToggle" class="ghost">Toggle Console</button>
   </div>
 
-  <p style="color:#666;margin-top:12px">If the game doesn't start, open the debug box (Toggle Console) and share the top errors here.</p>
+  <p style="color:#666;margin-top:12px">If game doesn't auto-start, open the console box (Toggle Console) and paste its top lines here.</p>
 </div>
 
-<div id="debug" class="debugBox" style="display:none"></div>
+<div id="debug" class="debugBox"></div>
 
-<!-- attempt to load eruda but don't let it break execution -->
+<!-- try to load eruda safely (non-blocking) -->
 <script>
-(function loadErudaSafely(){
+(function(){
   try{
-    const s = document.createElement('script');
-    s.src = 'https://cdn.jsdelivr.net/npm/eruda';
-    s.onload = function(){ try{ eruda.init(); console.log('eruda loaded'); }catch(e){ console.warn('eruda init failed', e); } };
-    s.onerror = function(){ console.warn('eruda load failed'); };
+    const s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/eruda';
+    s.onload=function(){ try{ eruda.init(); console.log('eruda loaded'); }catch(e){ console.warn('eruda init failed',e); } };
+    s.onerror=function(){ console.warn('eruda failed to load'); };
     document.head.appendChild(s);
-  }catch(e){ console.warn('eruda injection fail', e); }
+  }catch(e){ console.warn('eruda injection error', e); }
 })();
 </script>
 
 <script>
-/* Robust game script with defensive guards and on-screen debug output.
-   Replace images folder with your PNGs (apple.png etc).
+/* Robust single-file game runner.
+   - Auto-start fallback
+   - On-screen debug + console logging
+   - Defensive guards for missing images
+   - Smaller/slower bottom spawn default
 */
 
 (function(){
-  // ===== Debug UI (always available) =====
+  // debug UI
   const debugBox = document.getElementById('debug');
-  function showDebug(){ debugBox.style.display = 'block'; }
-  function hideDebug(){ debugBox.style.display = 'none'; }
-  document.getElementById('consoleToggle').addEventListener('click', ()=> debugBox.style.display = (debugBox.style.display === 'none' ? 'block' : 'none'));
+  function dbg(msg, lvl='log'){ const time=new Date().toLocaleTimeString(); const d=document.createElement('div'); d.className='debugLine'; d.textContent='['+time+'] '+msg; if(lvl==='error') d.style.color='#ffb3b3'; debugBox.appendChild(d); while(debugBox.childElementCount>140) debugBox.removeChild(debugBox.firstChild); console[lvl] ? console[lvl]('[FruitCut]',msg) : console.log('[FruitCut]',msg); }
+  document.getElementById('consoleToggle').addEventListener('click', ()=> { debugBox.style.display = debugBox.style.display==='none' ? 'block' : 'none'; });
 
-  function dbg(msg, level='log'){
-    const time = new Date().toLocaleTimeString();
-    const div = document.createElement('div'); div.className='debugLine'; div.textContent = `[${time}] ${msg}`;
-    if(level === 'error') div.style.color = '#ffb3b3';
-    debugBox.appendChild(div);
-    // keep only last 120 lines
-    while(debugBox.childElementCount > 140) debugBox.removeChild(debugBox.firstChild);
-    console[level] ? console[level]('[FruitCut]', msg) : console.log('[FruitCut]', msg);
-  }
-
-  // capture global errors
-  window.addEventListener('error', function(ev){
-    dbg('Error: ' + (ev && ev.message ? ev.message : String(ev)), 'error');
-  });
-  window.addEventListener('unhandledrejection', function(ev){
-    dbg('Promise Rejection: ' + (ev.reason ? (ev.reason.message || ev.reason) : JSON.stringify(ev)), 'error');
-  });
-
-  // ===== DOM refs =====
+  // dom refs
   const gameArea = document.getElementById('gameArea');
   const bladeCanvas = document.getElementById('bladeCanvas');
   const splatCanvas = document.getElementById('splatCanvas');
@@ -113,134 +96,82 @@
   const restartBtn = document.getElementById('restartBtn');
   const bigStart = document.getElementById('bigStart');
 
-  if(!gameArea){
-    dbg('Missing #gameArea element — cannot run', 'error');
-    showDebug();
-    return;
-  }
+  if(!gameArea){ dbg('Missing #gameArea - cannot run','error'); debugBox.style.display='block'; return; }
 
-  // ===== Config & State (single declarations) =====
+  // config
   const IMAGES = ["apple.png","banana.png","mango.png","orange.png","watermelon.png","strawberry.png","pineapple.png","papaya.png","pomegranate.png"];
   const BOMB = "bomb.png"; const ALL = IMAGES.concat([BOMB]);
+  const GRAVITY = 0.24, SPAWN_BASE = 1400; let spawnInterval = SPAWN_BASE;
+  const MAX_ACTIVE = 5, MAX_BLADE = 12, PTR_THROTTLE = 28;
+  const COMBO_WINDOW_MS = 700, COMBO_MULT = [1,1.2,1.5,2.0,3.0];
 
-  const GRAVITY = 0.24;
-  const SPAWN_BASE = 1400;
-  let spawnInterval = SPAWN_BASE; // declared once
-  const MAX_ACTIVE = 5;
-  const MAX_BLADE = 12;
-  const PTR_THROTTLE = 28;
+  // state
+  let score=0, lives=3, coins=0, level=1, running=false, spawnTimer=null;
+  const active = [], POOL=[], JUICE_POOL=[], CACHE={}; let lastSlices=[]; let areaW=480, areaH=520;
+  let bladeCtx = bladeCanvas.getContext('2d'), splatCtx = splatCanvas.getContext('2d');
 
-  const COMBO_WINDOW_MS = 700; const COMBO_MULT = [1,1.2,1.5,2.0,3.0];
+  function resizeAll(){ try{ const r=gameArea.getBoundingClientRect(); areaW=Math.max(1,Math.floor(r.width)); areaH=Math.max(1,Math.floor(r.height)); bladeCanvas.width=areaW; bladeCanvas.height=areaH; splatCanvas.width=areaW; splatCanvas.height=areaH; bladeCtx = bladeCanvas.getContext('2d'); splatCtx = splatCanvas.getContext('2d'); dbg('Area size: '+areaW+'x'+areaH); }catch(e){ dbg('resizeAll err:'+e,'error'); } }
+  window.addEventListener('resize', resizeAll); setTimeout(resizeAll,80);
 
-  let score = 0, lives = 3, coins = 0, level = 1;
-  let running = false, spawnTimer = null;
-  const active = []; const POOL = []; const JUICE_POOL = []; const CACHE = {};
-  let lastSlices = [];
-
-  // canvas contexts
-  let bladeCtx = bladeCanvas.getContext('2d');
-  let splatCtx = splatCanvas.getContext('2d');
-
-  // responsive area
-  let areaW = 480, areaH = 520;
-  function resizeAll(){
-    try{
-      const r = gameArea.getBoundingClientRect();
-      areaW = Math.max(1, Math.floor(r.width)); areaH = Math.max(1, Math.floor(r.height));
-      bladeCanvas.width = areaW; bladeCanvas.height = areaH;
-      splatCanvas.width = areaW; splatCanvas.height = areaH;
-      bladeCtx = bladeCanvas.getContext('2d'); splatCtx = splatCanvas.getContext('2d');
-      dbg('Resized area to ' + areaW + 'x' + areaH);
-    }catch(e){ dbg('resizeAll error: ' + e, 'error'); }
-  }
-  window.addEventListener('resize', resizeAll);
-  setTimeout(resizeAll, 80);
-
-  // ===== Preload with timeout fallback =====
-  async function preloadAll(timeoutMs = 3000){
-    dbg('Starting preload of images (timeout ' + timeoutMs + 'ms)...');
-    const list = ALL.slice();
-    const promises = list.map(name => new Promise(res => {
+  // preload with timeout
+  async function preloadAll(timeoutMs=2000){
+    dbg('preloading images (timeout '+timeoutMs+'ms)...');
+    const tasks = ALL.map(name => new Promise(res=>{
       try{
         const img = new Image();
-        img.onload = async ()=> { try{ if(img.decode) await img.decode(); }catch(e){} CACHE[name] = img; dbg('loaded ' + name); res({name, ok:true}); };
-        img.onerror = ()=> { dbg('failed to load ' + name); res({name, ok:false}); };
+        img.onload = async ()=> { try{ if(img.decode) await img.decode(); }catch(e){} CACHE[name]=img; dbg('loaded '+name); res({name,ok:true}); };
+        img.onerror = ()=> { dbg('img load failed: '+name); res({name,ok:false}); };
         img.src = 'images/' + name;
-      }catch(err){ dbg('preload error for ' + name + ': ' + err, 'error'); res({name, ok:false}); }
+      }catch(e){ dbg('preload err: '+e,'error'); res({name,ok:false}); }
     }));
-    // race between Promise.all and timeout
-    const allPromise = Promise.all(promises);
-    const timeout = new Promise(res => setTimeout(()=> res('__timeout__'), timeoutMs));
-    const r = await Promise.race([allPromise, timeout]);
-    if(r === '__timeout__'){
-      dbg('Preload timed out; continuing with what we have');
-      try{ await Promise.all(promises); }catch(e){ /* ignore */ }
-    } else {
-      dbg('Preload finished quickly');
-    }
+    const allPromise = Promise.all(tasks);
+    const timeout = new Promise(r=>setTimeout(()=>r('__timeout__'), timeoutMs));
+    const res = await Promise.race([allPromise, timeout]);
+    if(res === '__timeout__'){ dbg('preload timed out, continuing with available images'); try{ await Promise.all(tasks); }catch(e){} }
+    else dbg('preload done');
   }
 
-  // ===== Pools =====
-  function makeFruitEl(){
-    const el = document.createElement('div'); el.className='fruit'; el.style.position='absolute';
-    const img = document.createElement('img'); img.className='fruit-img'; img.draggable=false; el.appendChild(img);
-    return el;
-  }
+  // pools
+  function makeFruitEl(){ const el=document.createElement('div'); el.className='fruit'; el.style.position='absolute'; const img=document.createElement('img'); img.className='fruit-img'; img.draggable=false; el.appendChild(img); return el; }
   function acquireFruit(){ return POOL.length ? POOL.pop() : makeFruitEl(); }
-  function releaseFruit(el){ try{ const img = el.querySelector('img'); if(img) img.src=''; if(el.parentNode) el.parentNode.removeChild(el); POOL.push(el);}catch(e){ dbg('releaseFruit err: '+e,'error'); } }
-
-  function makeJuice(){ const j = document.createElement('div'); j.className='juice'; j.style.position='absolute'; j.style.pointerEvents='none'; j.style.zIndex=950; j.style.borderRadius='50%'; return j; }
+  function releaseFruit(el){ try{ const img = el.querySelector('img'); if(img) img.src=''; if(el.parentNode) el.parentNode.removeChild(el); POOL.push(el);}catch(e){ dbg('releaseFruit err:'+e,'error'); } }
+  function makeJuice(){ const j=document.createElement('div'); j.style.position='absolute'; j.style.pointerEvents='none'; j.style.zIndex=950; j.style.borderRadius='50%'; return j; }
   function acquireJuice(){ return JUICE_POOL.length ? JUICE_POOL.pop() : makeJuice(); }
   function releaseJuice(j){ if(j.parentNode) j.parentNode.removeChild(j); JUICE_POOL.push(j); }
 
-  // splat canvas list
-  const splats = []; const SPLAT_MAX = 48;
-  function addSplat(x,y,color,size,strength=1){ if(splats.length >= SPLAT_MAX) splats.shift(); splats.push({x,y,color,size,alpha:0.95*strength,life:1}); }
+  const splats=[]; const SPLAT_MAX=48;
+  function addSplat(x,y,color,size,strength=1){ if(splats.length>=SPLAT_MAX) splats.shift(); splats.push({x,y,color,size,alpha:0.95*strength,life:1}); }
+  function drawSplats(){ if(!splatCtx) return; splatCtx.save(); splatCtx.fillStyle='rgba(233,230,225,0.03)'; splatCtx.fillRect(0,0,splatCanvas.width,splatCanvas.height); for(let i=splats.length-1;i>=0;i--){ const s=splats[i]; const g=splatCtx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.size); g.addColorStop(0,`rgba(${s.color.r},${s.color.g},${s.color.b},${s.alpha})`); g.addColorStop(1,`rgba(${s.color.r},${s.color.g},${s.color.b},0)`); splatCtx.fillStyle=g; splatCtx.fillRect(s.x-s.size,s.y-s.size,s.size*2,s.size*2); s.alpha*=0.95; s.life-=0.02; if(s.alpha<0.02||s.life<0) splats.splice(i,1);} splatCtx.restore(); }
 
-  function drawSplats(){
-    if(!splatCtx) return;
-    splatCtx.save();
-    splatCtx.fillStyle = 'rgba(233,230,225,0.03)'; splatCtx.fillRect(0,0,splatCanvas.width,splatCanvas.height);
-    for(let i=splats.length-1;i>=0;i--){
-      const s = splats[i];
-      const g = splatCtx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.size);
-      g.addColorStop(0, `rgba(${s.color.r},${s.color.g},${s.color.b},${s.alpha})`);
-      g.addColorStop(1, `rgba(${s.color.r},${s.color.g},${s.color.b},0)`);
-      splatCtx.fillStyle = g; splatCtx.fillRect(s.x-s.size,s.y-s.size,s.size*2,s.size*2);
-      s.alpha *= 0.95; s.life -= 0.02; if(s.alpha < 0.02 || s.life < 0) splats.splice(i,1);
-    }
-    splatCtx.restore();
-  }
-
-  // ===== Spawn (from bottom, smaller & slower) =====
-  function spawnOne(typeName){
+  // spawn
+  function spawnOne(tName){
     try{
       if(!running) return;
       if(active.length >= MAX_ACTIVE) return;
-      const name = typeName || (Math.random() < 0.92 ? IMAGES[Math.floor(Math.random()*IMAGES.length)] : BOMB);
+      const name = tName || (Math.random() < 0.92 ? IMAGES[Math.floor(Math.random()*IMAGES.length)] : BOMB);
       const el = acquireFruit(); const img = el.querySelector('img');
-      const desiredWidth = Math.max(64, Math.min(110, Math.floor(areaW * 0.12)));
-      if(CACHE[name]){ img.src = CACHE[name].src; const nat = CACHE[name]; const ar = (nat.naturalHeight && nat.naturalWidth) ? (nat.naturalHeight / nat.naturalWidth) : 1; img.style.width = desiredWidth + 'px'; img.style.height = Math.round(desiredWidth * ar) + 'px'; el.style.width = img.style.width; el.style.height = img.style.height; } else { img.src = 'images/' + name; img.style.width = desiredWidth + 'px'; img.style.height = 'auto'; el.style.width = img.style.width; el.style.height = img.style.height; }
+      const desiredWidth = Math.max(56, Math.min(110, Math.floor(areaW * 0.11)));
+      if(CACHE[name]){ img.src=CACHE[name].src; const nat=CACHE[name]; const ar=(nat.naturalHeight&&nat.naturalWidth)?(nat.naturalHeight/nat.naturalWidth):1; img.style.width=desiredWidth+'px'; img.style.height=Math.round(desiredWidth*ar)+'px'; el.style.width=img.style.width; el.style.height=img.style.height; } else { img.src='images/'+name; img.style.width=desiredWidth+'px'; img.style.height='auto'; el.style.width=img.style.width; el.style.height=img.style.height; }
       const startX = Math.floor(Math.random() * Math.max(1, areaW - parseFloat(el.style.width) - 40)) + 20;
       const startY = -24;
       el.style.left = startX + 'px'; el.style.bottom = startY + 'px'; el.dataset.type = name; gameArea.appendChild(el);
-      const vy = 12 + Math.random() * 2.4; const vx = (Math.random() - 0.5) * 2.2; const rot = (Math.random()-0.5) * 28;
-      active.push({el, x: startX, y: startY, vx, vy, rot, type: name, cut: false});
-    }catch(e){ dbg('spawnOne error: '+e,'error'); }
+      const vy = 10 + Math.random()*2.2; const vx = (Math.random()-0.5)*2.0; const rot = (Math.random()-0.5)*18;
+      active.push({el, x:startX, y:startY, vx, vy, rot, type:name, cut:false});
+    }catch(e){ dbg('spawnOne err: '+e,'error'); }
   }
 
-  // ===== Main animation loop =====
+  // animation
   let last = performance.now();
   function step(now){
-    const dt = Math.min(40, now - last) / 16.666; last = now;
+    const dt = Math.min(40, now-last)/16.666; last = now;
     const floor = areaH - 36;
     for(let i=active.length-1;i>=0;i--){
       const f = active[i];
-      f.vy -= GRAVITY * dt;
-      f.x += f.vx * dt;
-      f.y += f.vy * dt;
-      f.rot += f.vx * 0.7 * dt;
-      if(f.y > floor){ f.y = floor; f.vy = -Math.abs(f.vy) * 0.45; }
+      f.vy -= GRAVITY*dt;
+      f.x += f.vx*dt;
+      f.y += f.vy*dt;
+      f.rot += f.vx*0.7*dt;
+      if(f.y > floor){ f.y = floor; f.vy = -Math.abs(f.vy)*0.45; }
       try{ f.el.style.transform = `translate3d(${f.x}px, ${-f.y}px, 0) rotate(${f.rot}deg)`; }catch(e){}
       if(f.x < -300 || f.x > areaW + 300 || f.y < -600){ try{ releaseFruit(f.el); }catch(e){} active.splice(i,1); }
     }
@@ -249,41 +180,18 @@
   }
   requestAnimationFrame(step);
 
-  // blade drawing & pointer handling
-  let bladePoints = [];
-  function addBladePoint(clientX, clientY){ const rect = gameArea.getBoundingClientRect(); bladePoints.push({x: clientX - rect.left, y: clientY - rect.top, t: Date.now()}); if(bladePoints.length > MAX_BLADE) bladePoints.shift(); }
-  function drawBlade(){ if(!bladeCtx) return; bladeCtx.clearRect(0,0, bladeCanvas.width, bladeCanvas.height); if(bladePoints.length < 2) return; bladeCtx.lineJoin='round'; bladeCtx.lineCap='round'; for(let i=0;i<bladePoints.length-1;i++){ const a = bladePoints[i], b = bladePoints[i+1]; const age = Date.now() - a.t; const alpha = Math.max(0, 1 - age/380); bladeCtx.strokeStyle = `rgba(34,197,94,${0.9*alpha})`; bladeCtx.lineWidth = 8*alpha + 2; bladeCtx.beginPath(); bladeCtx.moveTo(a.x,a.y); bladeCtx.lineTo(b.x,b.y); bladeCtx.stroke(); } }
+  // blade
+  let bladePoints=[]; function addBladePoint(cx,cy){ const r=gameArea.getBoundingClientRect(); bladePoints.push({x:cx-r.left,y:cy-r.top,t:Date.now()}); if(bladePoints.length>MAX_BLADE) bladePoints.shift(); }
+  function drawBlade(){ if(!bladeCtx) return; bladeCtx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height); if(bladePoints.length<2) return; bladeCtx.lineJoin='round'; bladeCtx.lineCap='round'; for(let i=0;i<bladePoints.length-1;i++){ const a=bladePoints[i], b=bladePoints[i+1]; const age = Date.now()-a.t; const alpha = Math.max(0,1-age/380); bladeCtx.strokeStyle=`rgba(34,197,94,${0.9*alpha})`; bladeCtx.lineWidth=8*alpha+2; bladeCtx.beginPath(); bladeCtx.moveTo(a.x,a.y); bladeCtx.lineTo(b.x,b.y); bladeCtx.stroke(); } }
 
+  // pointer
   let isDown=false, lastPtr=0, pointerHistory=[];
-  function onPointerDown(e){ isDown=true; pointerHistory=[]; addBladePoint(e.clientX, e.clientY); e.preventDefault && e.preventDefault(); }
-  function onPointerMove(e){
-    if(!isDown) return;
-    const now = Date.now(); if(now - lastPtr < PTR_THROTTLE) return; lastPtr = now;
-    addBladePoint(e.clientX, e.clientY);
-    pointerHistory.push({x: e.clientX, y: e.clientY});
-    if(pointerHistory.length > 18) pointerHistory.shift();
-    if(pointerHistory.length >= 2){
-      const p1 = pointerHistory[pointerHistory.length-2]; const p2 = pointerHistory[pointerHistory.length-1];
-      const snap = Array.from(active);
-      for(const f of snap){
-        try{
-          const r = f.el.getBoundingClientRect();
-          if(lineIntersectsRect(p1, p2, r)) handleSlice(f, p1, p2);
-        }catch(e){}
-      }
-    }
-  }
-  function onPointerUp(){ isDown=false; pointerHistory=[]; bladePoints=[]; drawBlade(); }
-  window.addEventListener('pointerdown', onPointerDown, {passive:false});
-  window.addEventListener('pointermove', onPointerMove, {passive:false});
-  window.addEventListener('pointerup', onPointerUp);
-  window.addEventListener('pointercancel', onPointerUp);
+  window.addEventListener('pointerdown', e=>{ isDown=true; pointerHistory=[]; addBladePoint(e.clientX,e.clientY); e.preventDefault && e.preventDefault(); }, {passive:false});
+  window.addEventListener('pointermove', e=>{ if(!isDown) return; const now=Date.now(); if(now-lastPtr < PTR_THROTTLE) return; lastPtr=now; addBladePoint(e.clientX,e.clientY); pointerHistory.push({x:e.clientX,y:e.clientY}); if(pointerHistory.length>18) pointerHistory.shift(); if(pointerHistory.length>=2){ const p1=pointerHistory[pointerHistory.length-2], p2=pointerHistory[pointerHistory.length-1]; const snap = Array.from(active); for(const f of snap){ try{ const r = f.el.getBoundingClientRect(); if(lineIntersectsRect(p1,p2,r)) handleSlice(f,p1,p2); }catch(e){} } } }, {passive:false});
+  window.addEventListener('pointerup', ()=>{ isDown=false; pointerHistory=[]; bladePoints=[]; drawBlade(); });
+  window.addEventListener('pointercancel', ()=>{ isDown=false; pointerHistory=[]; bladePoints=[]; drawBlade(); });
 
-  function lineIntersectsRect(p1, p2, rect){
-    if((p1.x < rect.left && p2.x < rect.left) || (p1.x > rect.right && p2.x > rect.right) ||
-       (p1.y < rect.top && p2.y < rect.top) || (p1.y > rect.bottom && p2.y > rect.bottom)) return false;
-    return true;
-  }
+  function lineIntersectsRect(p1,p2,rect){ if((p1.x < rect.left && p2.x < rect.left) || (p1.x > rect.right && p2.x > rect.right) || (p1.y < rect.top && p2.y < rect.top) || (p1.y > rect.bottom && p2.y > rect.bottom)) return false; return true; }
 
   function juiceColorFor(name){
     name = (name||'').toLowerCase();
@@ -299,79 +207,52 @@
     return {r:240,g:120,b:100};
   }
 
-  // handleSlice with splat + combo + halves
-  function handleSlice(f, p1, p2){
+  // handle slice
+  function handleSlice(f,p1,p2){
     try{
-      if(!f || f.cut) return;
-      f.cut = true;
+      if(!f || f.cut) return; f.cut=true;
       const type = f.type || (f.el && f.el.dataset && f.el.dataset.type);
-      if(type === BOMB){
-        lives = Math.max(0, lives - 1);
-        dbg('Bomb sliced. lives=' + lives, 'error');
-        removeFruit(f); updateHUD(); saveStateDebounced();
-        if(lives <= 0) endGame();
-        return;
-      }
-      const rect = f.el.getBoundingClientRect();
-      const cx = rect.left + rect.width/2 - gameArea.getBoundingClientRect().left;
-      const cy = rect.top + rect.height/2 - gameArea.getBoundingClientRect().top;
-      const color = juiceColorFor(type);
-      addSplat(cx + (Math.random()-0.5)*18, cy + (Math.random()-0.5)*12, color, 20 + Math.random()*14, 1);
+      if(type === BOMB){ lives = Math.max(0,lives-1); dbg('Bomb sliced. lives=' + lives, 'error'); removeFruit(f); updateHUD(); saveStateDebounced(); if(lives<=0) endGame(); return; }
+      const rect = f.el.getBoundingClientRect(); const cx = rect.left + rect.width/2 - gameArea.getBoundingClientRect().left; const cy = rect.top + rect.height/2 - gameArea.getBoundingClientRect().top;
+      const color = juiceColorFor(type); addSplat(cx + (Math.random()-0.5)*18, cy + (Math.random()-0.5)*12, color, 20 + Math.random()*14, 1);
       addSplat(cx + (Math.random()-0.5)*30, cy + (Math.random()-0.5)*20, color, 8 + Math.random()*10, 0.9);
 
-      // small juice DOM particles
       const smallCount = 5;
       for(let i=0;i<smallCount;i++){
         const j = acquireJuice();
-        const size = 5 + Math.random()*7;
-        j.style.width = size + 'px'; j.style.height = size + 'px';
-        j.style.left = (cx + (Math.random()-0.5)*12) + 'px';
-        j.style.top = (cy + (Math.random()-0.5)*12) + 'px';
-        j.style.background = `rgba(${color.r},${color.g},${color.b},${0.9 - Math.random()*0.2})`;
-        gameArea.appendChild(j);
-        (function(juiceEl){
-          const sx = parseFloat(juiceEl.style.left), sy = parseFloat(juiceEl.style.top);
-          const vx = (Math.random()-0.5) * 6, vy = - (2 + Math.random()*6);
-          const start = performance.now();
-          function anim(now){
-            const t = (now - start)/1000;
-            const x = sx + vx * t * 60;
-            const y = sy + vy * t * 60 + 0.5 * GRAVITY * t * t * 60;
-            juiceEl.style.left = x + 'px'; juiceEl.style.top = y + 'px';
-            juiceEl.style.opacity = String(Math.max(0, 1 - t * 1.4));
-            if(t < 0.9) requestAnimationFrame(anim); else releaseJuice(juiceEl);
-          }
-          requestAnimationFrame(anim);
-        })(j);
+        const size = 5 + Math.random()*7; j.style.width=size+'px'; j.style.height=size+'px';
+        j.style.left = (cx + (Math.random()-0.5)*12) + 'px'; j.style.top = (cy + (Math.random()-0.5)*12) + 'px';
+        j.style.background = `rgba(${color.r},${color.g},${color.b},${0.9 - Math.random()*0.2})`; gameArea.appendChild(j);
+        (function(juiceEl){ const sx = parseFloat(juiceEl.style.left), sy = parseFloat(juiceEl.style.top); const vx=(Math.random()-0.5)*6, vy = -(2 + Math.random()*6); const start = performance.now(); function anim(now){ const t=(now-start)/1000; const x = sx + vx * t * 60; const y = sy + vy * t * 60 + 0.5 * GRAVITY * t * t * 60; juiceEl.style.left = x + 'px'; juiceEl.style.top = y + 'px'; juiceEl.style.opacity = String(Math.max(0,1 - t*1.4)); if(t < 0.9) requestAnimationFrame(anim); else releaseJuice(juiceEl); } requestAnimationFrame(anim); })(j);
       }
 
-      // combo scoring
-      const now = Date.now(); lastSlices.push(now); lastSlices = lastSlices.filter(ts => now - ts <= COMBO_WINDOW_MS);
-      const count = lastSlices.length; const idx = Math.min(Math.max(0, count-1), COMBO_MULT.length - 1); const mult = COMBO_MULT[idx] || 1;
-      const base = 10; const awarded = Math.round(base * mult);
-      score += awarded; coins += Math.round(2 * mult);
-      coinPop && (coinPop.textContent = '+' + Math.round(2 * mult), coinPop.style.display = 'block', setTimeout(()=> coinPop.style.display = 'none', 700));
-      if(count > 1){
-        const comboBadge = document.getElementById('comboBadge');
-        comboBadge && (comboBadge.textContent = `COMBO x${count}!`, comboBadge.style.display = 'block', comboBadge.style.transform = 'translateX(-50%) scale(1.12)', comboBadge.style.opacity = '1', setTimeout(()=>{ comboBadge.style.transition = 'transform .6s, opacity .6s'; comboBadge.style.transform = 'translateX(-50%) scale(.92)'; comboBadge.style.opacity = '0'; setTimeout(()=>{ comboBadge.style.display = 'none'; comboBadge.style.transition=''; comboBadge.style.transform='translateX(-50%) scale(0.9)'; }, 620); }, 330));
-      }
-
+      const now = Date.now(); lastSlices.push(now); lastSlices = lastSlices.filter(ts => now - ts <= COMBO_WINDOW_MS); const count = lastSlices.length; const idx = Math.min(Math.max(0,count-1),COMBO_MULT.length-1); const mult = COMBO_MULT[idx] || 1; const base = 10; const awarded = Math.round(base * mult); score += awarded; coins += Math.round(2 * mult);
       updateHUD(); saveStateDebounced();
-
-      // halves
-      removeFruit(f); createHalves(rect, type);
-    }catch(err){ dbg('handleSlice error: '+err, 'error'); }
+      removeFruit(f); createHalves(rect,type);
+    }catch(e){ dbg('handleSlice err:'+e,'error'); }
   }
 
   function removeFruit(f){ for(let i=active.length-1;i>=0;i--) if(active[i]===f){ try{ if(active[i].el.parentNode) active[i].el.parentNode.removeChild(active[i].el); }catch(e){} active.splice(i,1); break; } }
 
-  function createHalves(rect, type){
+  function createHalves(rect,type){
     try{
-      const centerX = rect.left + rect.width/2 - gameArea.getBoundingClientRect().left;
-      const centerY = rect.top + rect.height/2 - gameArea.getBoundingClientRect().top;
-      const wrapper = document.createElement('div');
-      wrapper.style.position='absolute'; wrapper.style.left = (centerX - rect.width/2) + 'px'; wrapper.style.bottom = (-(centerY - rect.height/2)) + 'px';
-      wrapper.style.width = rect.width + 'px'; wrapper.style.height = rect.height + 'px'; wrapper.style.pointerEvents='none'; wrapper.style.zIndex=980;
-
+      const centerX = rect.left + rect.width/2 - gameArea.getBoundingClientRect().left; const centerY = rect.top + rect.height/2 - gameArea.getBoundingClientRect().top;
+      const wrapper = document.createElement('div'); wrapper.style.position='absolute'; wrapper.style.left=(centerX-rect.width/2)+'px'; wrapper.style.bottom = (-(centerY-rect.height/2)) + 'px'; wrapper.style.width = rect.width+'px'; wrapper.style.height = rect.height+'px'; wrapper.style.pointerEvents='none'; wrapper.style.zIndex=980;
       const left = document.createElement('div'); left.style.position='absolute'; left.style.left='0'; left.style.top='0'; left.style.width='50%'; left.style.height='100%'; left.style.overflow='hidden';
-      const li = document.createElement('img'); li.src = CACHE[type] ? CACHE[type].src : 'images/' + type; li.style.position='absolute'; li.style.width='200%'; li.style.height='100%';
+      const li = document.createElement('img'); li.src = CACHE[type] ? CACHE[type].src : 'images/'+type; li.style.position='absolute'; li.style.width='200%'; li.style.height='100%'; li.style.left='0'; li.style.top='0'; left.appendChild(li);
+      const right = document.createElement('div'); right.style.position='absolute'; right.style.right='0'; right.style.top='0'; right.style.width='50%'; right.style.height='100%'; right.style.overflow='hidden';
+      const ri = document.createElement('img'); ri.src = CACHE[type] ? CACHE[type].src : 'images/'+type; ri.style.position='absolute'; ri.style.width='200%'; ri.style.height='100%'; ri.style.left='-50%'; ri.style.top='0'; right.appendChild(ri);
+      wrapper.appendChild(left); wrapper.appendChild(right); gameArea.appendChild(wrapper);
+      const seed=(Math.random()-0.5)*0.6; let left_vx=-1.8+seed,left_vy=1.6+Math.random()*1.2,left_rot=-20-Math.random()*28; let right_vx=1.9+seed,right_vy=1.9+Math.random()*1.2,right_rot=18+Math.random()*28;
+      const t0 = performance.now();
+      function anim(now){ const dt=(now-t0)/1000; const lx = left_vx * dt * 40; const ly = - (left_vy * dt * 40) + 0.5 * GRAVITY * dt * dt * 40; const rx = right_vx * dt * 40; const ry = - (right_vy * dt * 40) + 0.5 * GRAVITY * dt * dt * 40; left.style.transform = `translate3d(${lx}px, ${ly}px, 0) rotate(${left_rot * dt}deg)`; right.style.transform = `translate3d(${rx}px, ${ry}px, 0) rotate(${right_rot * dt}deg)`; const alpha = Math.max(0,1 - dt * 1.6); left.style.opacity = alpha; right.style.opacity = alpha; if(dt<0.9 && Math.random()<0.12) addSplat(centerX+(Math.random()-0.5)*30, centerY+(Math.random()-0.5)*30+dt*10, juiceColorFor(type), 6+Math.random()*8, 0.6); if(alpha>0.02) requestAnimationFrame(anim); else { if(wrapper.parentNode) wrapper.parentNode.removeChild(wrapper); } }
+      requestAnimationFrame(anim);
+    }catch(e){ dbg('createHalves err:'+e,'error'); }
+  }
+
+  // HUD & controls
+  function updateHUD(){ try{ scoreEl.textContent=score; livesEl.textContent=lives; coinsEl.textContent=coins; levelEl.textContent=level; pauseBtn.disabled = !running; }catch(e){} }
+  function startGame(){ if(running) return; running=true; bigStart.style.display='none'; if(spawnTimer) clearInterval(spawnTimer); spawnTimer = setInterval(()=> spawnOne(), spawnInterval); spawnOne(); updateHUD(); dbg('Game started'); }
+  function pauseGame(){ running = !running; if(!running && spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } if(running && !spawnTimer) spawnTimer=setInterval(()=>spawnOne(), spawnInterval); updateHUD(); dbg('Pause toggled: '+running); }
+  function restartGame(){ for(const f of Array.from(active)) try{ if(f.el.parentNode) f.el.parentNode.removeChild(f.el); }catch(e){} active.length=0; score=0; coins=0; lives=3; level=1; running=false; if(spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } bigStart.style.display='none'; updateHUD(); saveState(); dbg('Restarted'); }
+  function endGame(){ running=false; if(spawnTimer){ clearInterval(spaw
