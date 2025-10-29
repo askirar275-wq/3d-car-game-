@@ -1,51 +1,357 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Fruit Cut — Debug Build</title>
-<link rel="stylesheet" href="css/style.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🍉 Fruit Cut – Final Version</title>
+<style>
+  :root {
+    --bg: #f4f7fb;
+    --panel: #efe9e1;
+    --btn: #111;
+  }
+  * { box-sizing: border-box; user-select: none; }
+  body {
+    font-family: 'Poppins', sans-serif;
+    background: var(--bg);
+    color: #111;
+    margin: 0;
+    padding: 16px;
+    text-align: center;
+  }
+  h1 { font-size: 28px; margin-bottom: 12px; }
+  .hud {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 10px;
+  }
+  .stat {
+    background: #fff;
+    padding: 8px 14px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+  }
+  #gameWrapper {
+    position: relative;
+    width: 90%;
+    max-width: 600px;
+    margin: 0 auto;
+    height: 500px;
+    border-radius: 16px;
+    overflow: hidden;
+    background: var(--panel);
+    border: 2px solid #ddd;
+  }
+  #gameArea, #bladeCanvas, #particleCanvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+  }
+  .fruit {
+    position: absolute;
+    width: 100px;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+  }
+  #startBtn {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--btn);
+    color: #fff;
+    border: none;
+    padding: 16px 28px;
+    border-radius: 12px;
+    font-size: 18px;
+    cursor: pointer;
+    z-index: 10;
+  }
+  #controls { margin-top: 10px; }
+  button {
+    background: #fff;
+    border: none;
+    padding: 10px 14px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    cursor: pointer;
+    font-weight: bold;
+    margin: 5px;
+  }
+  #gameOver {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.8);
+    color: #fff;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 100;
+    display: none;
+  }
+  #gameOver button {
+    background: #fff;
+    color: #000;
+    margin-top: 10px;
+  }
+</style>
 </head>
 <body>
-  <div class="container">
-    <h1>🍉 Fruit Cut — Debug Build</h1>
-
-    <div class="hud">
-      <div class="stat">Score: <strong id="scoreEl">0</strong></div>
-      <div class="stat">Lives: <strong id="livesEl">3</strong></div>
-      <div class="stat">Coins: <strong id="coinsEl">0</strong></div>
-      <div style="flex:1"></div>
-      <div class="stat">Level: <strong id="levelEl">1</strong></div>
-    </div>
-
-    <div id="gameWrapper">
-      <div id="gameArea" aria-label="Game area"></div>
-      <canvas id="bladeCanvas"></canvas>
-
-      <div id="bigStart">START</div>
-
-      <!-- debug overlay -->
-      <div id="debugConsole" class="debug-console hidden">
-        <div class="dbg-head">
-          <strong>Debug Console</strong>
-          <button id="dbgClear">Clear</button>
-        </div>
-        <div id="dbgLog" class="dbg-log" aria-live="polite"></div>
-      </div>
-
-      <div id="missingBox" class="missing-box hidden"></div>
-    </div>
-
-    <div class="controls">
-      <button id="startBtn">Start</button>
-      <button id="pauseBtn" disabled>Pause</button>
-      <button id="restartBtn">Restart</button>
-      <button id="toggleDbg">Toggle Console</button>
-    </div>
-
-    <p class="tip">Tip: Slice fruits by swiping. Avoid bombs. Use Switch Console to debug loading.</p>
+  <h1>🍉 Fruit Cut – Final</h1>
+  <div class="hud">
+    <div class="stat">Score: <span id="score">0</span></div>
+    <div class="stat">Lives: <span id="lives">3</span></div>
+    <div class="stat">Coins: <span id="coins">0</span></div>
   </div>
 
-  <script src="js/game.js" defer></script>
+  <div id="gameWrapper">
+    <canvas id="particleCanvas"></canvas>
+    <canvas id="bladeCanvas"></canvas>
+    <div id="gameArea"></div>
+    <button id="startBtn">START</button>
+    <div id="gameOver">
+      <h2>Game Over</h2>
+      <p>Final Score: <span id="finalScore">0</span></p>
+      <button id="restartBtn">Restart</button>
+    </div>
+  </div>
+
+  <div id="controls">
+    <button id="pauseBtn">Pause</button>
+  </div>
+
+<script>
+const IMG_PATH = 'images/';
+const IMAGES = [
+  'apple.png','banana.png','cantaloupe.png','guava.png','mango.png',
+  'orange.png','papaya.png','pear.png','pineapple.png','plum.png',
+  'pomegranate.png','strawberry.png','watermelon.png','bomb.png'
+];
+
+const GRAVITY = 0.25;
+const FRUIT_SIZE = 100;
+const THROW_VY_MIN = 12;
+const THROW_VY_MAX = 18;
+const VX_MAX = 2.5;
+const SPAWN_INTERVAL = 700;
+
+const area = document.getElementById('gameArea');
+const bladeCanvas = document.getElementById('bladeCanvas');
+const particleCanvas = document.getElementById('particleCanvas');
+const bctx = bladeCanvas.getContext('2d');
+const pctx = particleCanvas.getContext('2d');
+const startBtn = document.getElementById('startBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const restartBtn = document.getElementById('restartBtn');
+const gameOver = document.getElementById('gameOver');
+const finalScore = document.getElementById('finalScore');
+const scoreEl = document.getElementById('score');
+const livesEl = document.getElementById('lives');
+const coinsEl = document.getElementById('coins');
+
+let fruits = [];
+let particles = [];
+let cache = {};
+let running = false;
+let paused = false;
+let spawnTimer = null;
+let score = 0, lives = 3, coins = 0;
+
+function resizeCanvas(){
+  bladeCanvas.width = particleCanvas.width = area.offsetWidth;
+  bladeCanvas.height = particleCanvas.height = area.offsetHeight;
+}
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+function preloadImages(){
+  IMAGES.forEach(name=>{
+    const img = new Image();
+    img.src = IMG_PATH + name;
+    cache[name] = img;
+  });
+}
+preloadImages();
+
+function rand(min,max){ return Math.random()*(max-min)+min; }
+
+function spawnFruit(){
+  if(!running || paused) return;
+  const names = IMAGES.filter(n=>cache[n]);
+  const name = Math.random()<0.1 ? 'bomb.png' : names[Math.floor(Math.random()*names.length)];
+  const img = cache[name];
+  const x = rand(40, area.offsetWidth-40);
+  const y = area.offsetHeight + 50;
+  const vx = rand(-VX_MAX, VX_MAX);
+  const vy = -rand(THROW_VY_MIN, THROW_VY_MAX);
+  const el = document.createElement('img');
+  el.src = img.src;
+  el.className = 'fruit';
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  area.appendChild(el);
+  fruits.push({el,x,y,vx,vy,rot:0,name});
+}
+
+function updatePhysics(){
+  for(let i=fruits.length-1;i>=0;i--){
+    const f=fruits[i];
+    f.vy += GRAVITY;
+    f.x += f.vx;
+    f.y += f.vy;
+    f.rot += 3;
+    f.el.style.left = f.x+'px';
+    f.el.style.top = f.y+'px';
+    f.el.style.transform=`translate(-50%,-50%) rotate(${f.rot}deg)`;
+    if(f.y > area.offsetHeight + 120){
+      f.el.remove();
+      fruits.splice(i,1);
+    }
+  }
+}
+
+function spawnParticles(x,y,color,count=20){
+  for(let i=0;i<count;i++){
+    particles.push({
+      x,y,
+      vx:rand(-3,3),
+      vy:rand(-5,1),
+      life:rand(600,1000),
+      size:rand(4,8),
+      color,
+      age:0
+    });
+  }
+}
+
+function drawParticles(dt){
+  pctx.clearRect(0,0,particleCanvas.width,particleCanvas.height);
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.vy+=GRAVITY*0.3;
+    p.x+=p.vx; p.y+=p.vy;
+    p.age+=dt;
+    const alpha=Math.max(0,1-p.age/p.life);
+    pctx.globalAlpha=alpha;
+    pctx.fillStyle=p.color;
+    pctx.beginPath();
+    pctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+    pctx.fill();
+    if(p.age>p.life)particles.splice(i,1);
+  }
+}
+
+let bladePoints=[];
+function addBladePoint(x,y){
+  const rect = area.getBoundingClientRect();
+  bladePoints.push({x:x-rect.left,y:y-rect.top,t:Date.now()});
+  if(bladePoints.length>30)bladePoints.shift();
+}
+function drawBlade(){
+  bctx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height);
+  if(bladePoints.length<2){requestAnimationFrame(drawBlade);return;}
+  for(let i=0;i<bladePoints.length-1;i++){
+    const p1=bladePoints[i],p2=bladePoints[i+1];
+    const alpha=1-(Date.now()-p1.t)/300;
+    if(alpha<=0)continue;
+    bctx.strokeStyle=`rgba(0,200,0,${alpha})`;
+    bctx.lineWidth=10*alpha;
+    bctx.beginPath();
+    bctx.moveTo(p1.x,p1.y);
+    bctx.lineTo(p2.x,p2.y);
+    bctx.stroke();
+  }
+  bladePoints=bladePoints.filter(p=>Date.now()-p.t<350);
+  requestAnimationFrame(drawBlade);
+}
+drawBlade();
+
+function checkSlice(x,y){
+  for(let i=fruits.length-1;i>=0;i--){
+    const f=fruits[i];
+    const r=f.el.getBoundingClientRect();
+    if(x>r.left && x<r.right && y>r.top && y<r.bottom){
+      if(f.name==='bomb.png'){
+        lives--;
+        spawnParticles(f.x,f.y,'#ff3333',40);
+        screenShake();
+        if(lives<=0)return endGame();
+      }else{
+        score+=10; coins++;
+        spawnParticles(f.x,f.y,'#ffd54f',20);
+      }
+      updateHUD();
+      f.el.remove();
+      fruits.splice(i,1);
+    }
+  }
+}
+
+function updateHUD(){
+  scoreEl.textContent=score;
+  livesEl.textContent=lives;
+  coinsEl.textContent=coins;
+}
+
+function screenShake(){
+  const wrapper=document.getElementById('gameWrapper');
+  wrapper.style.transition='transform 0.1s';
+  wrapper.style.transform='translate(10px,5px)';
+  setTimeout(()=>wrapper.style.transform='translate(0,0)',100);
+}
+
+function gameLoop(){
+  if(!running)return;
+  if(!paused){
+    updatePhysics();
+    drawParticles(16);
+  }
+  requestAnimationFrame(gameLoop);
+}
+
+function startGame(){
+  if(running)return;
+  running=true;
+  paused=false;
+  startBtn.style.display='none';
+  gameOver.style.display='none';
+  score=0;lives=3;coins=0;
+  updateHUD();
+  spawnTimer=setInterval(spawnFruit,SPAWN_INTERVAL);
+  gameLoop();
+}
+
+function endGame(){
+  running=false;
+  clearInterval(spawnTimer);
+  finalScore.textContent=score;
+  gameOver.style.display='flex';
+}
+
+function pauseGame(){
+  if(!running)return;
+  paused=!paused;
+  pauseBtn.textContent=paused?'Resume':'Pause';
+}
+
+function restartGame(){
+  fruits.forEach(f=>f.el.remove());
+  fruits=[];
+  particles=[];
+  running=false;
+  startGame();
+}
+
+area.addEventListener('pointermove',e=>{
+  addBladePoint(e.clientX,e.clientY);
+  checkSlice(e.clientX,e.clientY);
+});
+
+startBtn.onclick=startGame;
+pauseBtn.onclick=pauseGame;
+restartBtn.onclick=restartGame;
+</script>
 </body>
-</html>
+      </html>
