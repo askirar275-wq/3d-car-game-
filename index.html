@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Fixed Start + Console</title>
+<title>Fruit Cut — Fixed Start + Console (Console Visible)</title>
 <style>
 :root{--ui:#f4f7fb;--panel:#efe9e1;--btn:#111;--muted:#666}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -21,7 +21,14 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
 .controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;padding:12px;margin-top:8px}
 .btn{background:#fff;border:0;padding:10px 14px;border-radius:12px;cursor:pointer;box-shadow:0 8px 20px rgba(2,6,23,0.06);font-weight:700}
 .btn.ghost{background:transparent;border:1px solid rgba(0,0,0,0.06)}
-.consoleBox{position:absolute;right:8px;top:8px;background:rgba(0,0,0,0.72);color:#fff;padding:8px;border-radius:8px;z-index:1200;max-height:46%;overflow:auto;font-family:monospace;font-size:12px;display:none}
+.consoleBox{position:absolute;right:8px;top:8px;background:rgba(0,0,0,0.82);color:#fff;padding:8px;border-radius:8px;z-index:1200;max-height:46%;overflow:auto;font-family:monospace;font-size:12px;display:block;min-width:220px;max-width:60%}
+.consoleHeader{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px}
+.consoleHeader b{font-size:13px}
+.consoleBody{max-height:calc(46vh - 36px);overflow:auto}
+.consoleLine{padding:4px 6px;border-radius:4px;opacity:.95}
+.consoleLine.info{color:#d1fae5}
+.consoleLine.warn{color:#fff1bf}
+.consoleLine.err{color:#ffd6d6}
 .hidden{display:none}
 .card{background:#fff;padding:14px;border-radius:10px;box-shadow:0 12px 36px rgba(2,6,23,0.12)}
 #gameOver{position:absolute;inset:0;z-index:1400;display:none;align-items:center;justify-content:center}
@@ -31,7 +38,7 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
 </head>
 <body>
 <div class="container">
-  <h1>🍉 Fruit Cut — Fixed Start + Console</h1>
+  <h1>🍉 Fruit Cut — Fixed Start + Console (Console Visible)</h1>
   <div class="hud">
     <div class="stat">Score: <span id="score">0</span></div>
     <div class="stat">Lives: <span id="lives">3</span></div>
@@ -56,7 +63,17 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
       </div>
     </div>
 
-    <div id="consoleBox" class="consoleBox"></div>
+    <!-- Console box - VISIBLE by default -->
+    <div id="consoleBox" class="consoleBox" role="log" aria-live="polite">
+      <div class="consoleHeader">
+        <b>Console</b>
+        <div>
+          <button id="clearConsole" class="btn" style="padding:6px 8px;font-size:12px">Clear</button>
+          <button id="hideConsole" class="btn" style="padding:6px 8px;font-size:12px">Hide</button>
+        </div>
+      </div>
+      <div id="consoleBody" class="consoleBody"></div>
+    </div>
   </div>
 
   <div class="controls">
@@ -70,10 +87,10 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
 <div id="toast" class="toast"></div>
 
 <script>
-/* Robust single-file game — fixed start and console toggling */
+/* Robust single-file game — console visible by default */
 (() => {
   // config - image folder and names
-  const IMG_PATH = 'images/'; // keep your images here
+  const IMG_PATH = 'images/'; // keep your images here (relative path)
   const FRUITS = ['apple.png','banana.png','cantaloupe.png','guava.png','mango.png','orange.png','papaya.png','pear.png','pineapple.png','plum.png','pomegranate.png','strawberry.png','watermelon.png'];
   const BOMB = 'bomb.png';
 
@@ -87,6 +104,9 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
   const restartBtn = document.getElementById('restartBtn');
   const toggleConsole = document.getElementById('toggleConsole');
   const consoleBox = document.getElementById('consoleBox');
+  const consoleBody = document.getElementById('consoleBody');
+  const clearConsole = document.getElementById('clearConsole');
+  const hideConsole = document.getElementById('hideConsole');
   const gameOver = document.getElementById('gameOver');
   const goRestart = document.getElementById('goRestart');
   const goScore = document.getElementById('goScore');
@@ -108,13 +128,40 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
   let spawnInterval = 900, spawnTimer = null;
   let fruits = [], particles = [], bladePoints = [];
   let imageCache = {};
-  let consoleVisible = false;
+  let consoleVisible = true;
 
+  // console logging (visible)
   function log(...args){
     const s = `[FruitCut] ${args.join(' ')}`;
+    // also send to browser console
     console.log(s);
-    const d = document.createElement('div'); d.textContent = s;
-    consoleBox.prepend(d); // newest on top
+    // create DOM line
+    const el = document.createElement('div');
+    el.className = 'consoleLine info';
+    el.textContent = s;
+    // prepend, but keep scroll at top of newest
+    consoleBody.prepend(el);
+    // keep console size sane
+    if(consoleBody.childElementCount > 500){
+      // remove last
+      consoleBody.removeChild(consoleBody.lastChild);
+    }
+  }
+  function warn(...args){
+    const s = `[FruitCut][WARN] ${args.join(' ')}`;
+    console.warn(s);
+    const el = document.createElement('div');
+    el.className = 'consoleLine warn';
+    el.textContent = s;
+    consoleBody.prepend(el);
+  }
+  function err(...args){
+    const s = `[FruitCut][ERR] ${args.join(' ')}`;
+    console.error(s);
+    const el = document.createElement('div');
+    el.className = 'consoleLine err';
+    el.textContent = s;
+    consoleBody.prepend(el);
   }
 
   function showToast(msg, t=1200){ toast.textContent = msg; toast.style.display = 'block'; setTimeout(()=> toast.style.display = 'none', t); }
@@ -133,15 +180,26 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
   const ALL = FRUITS.concat([BOMB]);
   function preloadAll(timeout = 2500){
     return new Promise((resolve) => {
-      let loaded = 0, done = false;
+      let loaded = 0, done = false, total = ALL.length;
+      log('Preload start', ALL.join(','));
       ALL.forEach(name=>{
         const img = new Image();
-        img.onload = ()=>{ imageCache[name] = img; loaded++; log('loaded', name); if(loaded === ALL.length && !done){ done = true; resolve(true);} };
-        img.onerror = ()=>{ log('failed:', name); loaded++; if(loaded === ALL.length && !done){ done = true; resolve(false);} };
+        img.onload = ()=>{
+          imageCache[name] = img;
+          loaded++;
+          log('loaded', name);
+          if(loaded === total && !done){ done = true; resolve(true); }
+        };
+        img.onerror = ()=>{
+          warn('failed', name);
+          loaded++;
+          if(loaded === total && !done){ done = true; resolve(false); }
+        };
+        // set src (use cache-friendly queryless)
         img.src = IMG_PATH + name;
       });
       // safety timeout
-      setTimeout(()=>{ if(!done){ done = true; log('preload timed out — continuing'); resolve(false); } }, timeout);
+      setTimeout(()=>{ if(!done){ done = true; warn('preload timed out — continuing'); resolve(false); } }, timeout);
     });
   }
 
@@ -155,7 +213,7 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
     el.src = imgSrc;
     el.className = 'fruit';
     // size smaller for mobile but visible
-    const size = Math.max(64, Math.min(140, Math.floor(area.clientWidth * 0.16)));
+    const size = Math.max(64, Math.min(140, Math.floor(area.clientWidth * 0.18)));
     el.style.width = size + 'px';
     const x = rand(60, area.clientWidth - 60);
     const startY = area.clientHeight + 40;
@@ -185,7 +243,7 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
       }
       if(f.y > area.clientHeight + 90){
         if(!f.sliced && !f.isBomb){
-          // missed fruit -> user said "no penalty" so do nothing
+          // missed fruit -> no penalty (as requested)
         }
         if(f.el) f.el.remove();
         fruits.splice(i,1);
@@ -212,10 +270,10 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
     (function anim(){
       const t = (Date.now() - start)/dur;
       if(t >= 1){ left.remove(); right.remove(); return; }
-      left.style.left = (f.x - 14*t*6) + 'px';
+      left.style.left = (f.x - 18*t*6) + 'px';
       left.style.top = (f.y - 30*t + t*10) + 'px';
       left.style.transform = 'translate(-50%,-50%) rotate(' + (f.rot - 30*t) + 'deg)';
-      right.style.left = (f.x + 14*t*6) + 'px';
+      right.style.left = (f.x + 18*t*6) + 'px';
       right.style.top = (f.y - 30*t + t*10) + 'px';
       right.style.transform = 'translate(-50%,-50%) rotate(' + (f.rot + 30*t) + 'deg)';
       requestAnimationFrame(anim);
@@ -284,7 +342,7 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
         if(f.isBomb){
           lives = Math.max(0, lives - 1);
           spawnParticles(f.x, f.y, '#ff4d4d');
-          log('Bomb sliced. lives=' + lives);
+          warn('Bomb sliced. lives=' + lives);
           if(lives <= 0){ endGame(); }
         } else {
           score += 10; coins += 1;
@@ -336,6 +394,7 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
     running = false; paused = false;
     bigStart.style.display = 'block'; gameOver.style.display = 'none';
     startGame(false);
+    log('Restarted');
   }
   function endGame(){
     running = false; stopSpawning();
@@ -362,6 +421,10 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
     consoleBox.style.display = consoleVisible ? 'block' : 'none';
   }
 
+  // console controls
+  clearConsole.addEventListener('click', ()=> { consoleBody.innerHTML = ''; });
+  hideConsole.addEventListener('click', ()=> { consoleBox.style.display = 'none'; consoleVisible = false; });
+
   // start bindings
   startBtn.addEventListener('click', ()=> startGame());
   bigStart.addEventListener('click', ()=> startGame());
@@ -380,11 +443,7 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
     resize();
     physicsTick();
     // preload images; start after a short timeout even if preload is slow
-    preloadAll(2200).then(()=>{
-      log('preload finished');
-      // small delay then auto-start
-      setTimeout(()=>{ if(!running) { log('auto-start fallback'); startGame(true); } }, 300);
-    });
+    preloadAll(2200).then(()=>{ log('preload finished'); setTimeout(()=>{ if(!running) { log('auto-start fallback'); startGame(true); } }, 300); });
   }
 
   // helper: safely set sizes on load
@@ -399,4 +458,4 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
 })();
 </script>
 </body>
-  </html>
+            </html>
