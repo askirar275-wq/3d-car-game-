@@ -1,357 +1,465 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🍉 Fruit Cut – Final Version</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Fruit Cut — Final (Slices & Halves)</title>
 <style>
-  :root {
-    --bg: #f4f7fb;
-    --panel: #efe9e1;
-    --btn: #111;
-  }
-  * { box-sizing: border-box; user-select: none; }
-  body {
-    font-family: 'Poppins', sans-serif;
-    background: var(--bg);
-    color: #111;
-    margin: 0;
-    padding: 16px;
-    text-align: center;
-  }
-  h1 { font-size: 28px; margin-bottom: 12px; }
-  .hud {
-    display: flex;
-    justify-content: center;
-    flex-wrap: wrap;
-    gap: 10px;
-    margin-bottom: 10px;
-  }
-  .stat {
-    background: #fff;
-    padding: 8px 14px;
-    border-radius: 10px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-  }
-  #gameWrapper {
-    position: relative;
-    width: 90%;
-    max-width: 600px;
-    margin: 0 auto;
-    height: 500px;
-    border-radius: 16px;
-    overflow: hidden;
-    background: var(--panel);
-    border: 2px solid #ddd;
-  }
-  #gameArea, #bladeCanvas, #particleCanvas {
-    position: absolute;
-    top: 0; left: 0;
-    width: 100%; height: 100%;
-  }
-  .fruit {
-    position: absolute;
-    width: 100px;
-    transform: translate(-50%, -50%);
-    pointer-events: none;
-  }
-  #startBtn {
-    position: absolute;
-    top: 50%; left: 50%;
-    transform: translate(-50%, -50%);
-    background: var(--btn);
-    color: #fff;
-    border: none;
-    padding: 16px 28px;
-    border-radius: 12px;
-    font-size: 18px;
-    cursor: pointer;
-    z-index: 10;
-  }
-  #controls { margin-top: 10px; }
-  button {
-    background: #fff;
-    border: none;
-    padding: 10px 14px;
-    border-radius: 10px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    cursor: pointer;
-    font-weight: bold;
-    margin: 5px;
-  }
-  #gameOver {
-    position: absolute;
-    inset: 0;
-    background: rgba(0,0,0,0.8);
-    color: #fff;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    z-index: 100;
-    display: none;
-  }
-  #gameOver button {
-    background: #fff;
-    color: #000;
-    margin-top: 10px;
-  }
+:root{
+  --bg:#f4f7fb; --panel:#efe9e1; --btn:#111; --accent:#22c55e;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none}
+body{margin:12px;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:var(--bg);color:#111}
+.container{max-width:980px;margin:0 auto}
+.h1{font-size:28px;margin:6px 0}
+.hud{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.stat{background:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 6px 18px rgba(2,6,23,0.04)}
+#gameWrapper{
+  position:relative;margin:0 auto;width:92%;max-width:700px;height:560px;border-radius:14px;overflow:hidden;border:1px solid rgba(0,0,0,0.06);
+  background:var(--panel);display:block;
+}
+#gameArea{position:absolute;inset:0;touch-action:none;overflow:hidden}
+canvas{position:absolute;inset:0;pointer-events:none}
+.fruit{position:absolute;transform:translate(-50%,-50%);pointer-events:none;z-index:50;will-change:transform,top,left,opacity}
+.half{position:absolute;transform:translate(-50%,-50%);pointer-events:none;z-index:60;will-change:transform,opacity}
+#startBtn{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:120;background:var(--btn);color:#fff;padding:14px 20px;border-radius:12px;border:0;cursor:pointer;font-weight:700;box-shadow:0 12px 30px rgba(0,0,0,0.2)}
+.controls{display:flex;gap:8px;justify-content:center;margin-top:12px;flex-wrap:wrap}
+button.ctrl{background:#fff;border:0;padding:10px 14px;border-radius:10px;cursor:pointer;box-shadow:0 8px 22px rgba(0,0,0,0.06);font-weight:700}
+#gameOver{position:absolute;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);z-index:300}
+#gameOver .card{background:#fff;padding:18px;border-radius:12px;min-width:260px}
+.smallNote{color:#666;margin-top:10px}
+.sliceFlash{position:absolute;pointer-events:none;z-index:140}
+@media (max-width:700px){
+  #gameWrapper{height:460px}
+  .fruit{width:80px}
+}
 </style>
 </head>
 <body>
-  <h1>🍉 Fruit Cut – Final</h1>
+<div class="container">
+  <div class="h1">🍉 Fruit Cut — Final (Halves & Blade)</div>
   <div class="hud">
-    <div class="stat">Score: <span id="score">0</span></div>
-    <div class="stat">Lives: <span id="lives">3</span></div>
-    <div class="stat">Coins: <span id="coins">0</span></div>
+    <div class="stat">Score: <strong id="score">0</strong></div>
+    <div class="stat">Lives: <strong id="lives">3</strong></div>
+    <div class="stat">Coins: <strong id="coins">0</strong></div>
+    <div style="flex:1"></div>
+    <div class="stat">Level: <strong id="level">1</strong></div>
   </div>
 
-  <div id="gameWrapper">
-    <canvas id="particleCanvas"></canvas>
-    <canvas id="bladeCanvas"></canvas>
+  <div id="gameWrapper" role="application" aria-label="Fruit Cut game area">
     <div id="gameArea"></div>
+    <canvas id="bladeCanvas"></canvas>
+    <canvas id="particles"></canvas>
+    <div id="sliceFlash" class="sliceFlash"></div>
     <button id="startBtn">START</button>
+
     <div id="gameOver">
-      <h2>Game Over</h2>
-      <p>Final Score: <span id="finalScore">0</span></p>
-      <button id="restartBtn">Restart</button>
+      <div class="card">
+        <h3>Game Over</h3>
+        <p>Score: <span id="finalScore">0</span></p>
+        <div style="display:flex;gap:8px;justify-content:center;margin-top:8px">
+          <button id="restartBtn" class="ctrl">Play Again</button>
+        </div>
+      </div>
     </div>
   </div>
 
-  <div id="controls">
-    <button id="pauseBtn">Pause</button>
+  <div class="controls">
+    <button id="pauseBtn" class="ctrl">Pause</button>
+    <button id="toggleConsole" class="ctrl">Toggle Console</button>
   </div>
 
+  <p class="smallNote">Tip: Swipe fast to combo. Bombs reduce life. Halves animation mimics real slice.</p>
+</div>
+
+<!-- Lightweight in-page debug console (toggle) -->
+<div id="dbg" style="position:fixed;left:10px;top:80px;width:48%;max-width:480px;height:44%;overflow:auto;background:rgba(0,0,0,0.75);color:#fff;padding:10px;border-radius:8px;display:none;z-index:999">
+  <div id="dbgInner" style="font-family:monospace;font-size:13px;line-height:1.3"></div>
+</div>
+
 <script>
-const IMG_PATH = 'images/';
-const IMAGES = [
+/* ---------------- CONFIG ---------------- */
+const IMG_PATH = 'images/'; // folder with images
+const FRUIT_LIST = [
   'apple.png','banana.png','cantaloupe.png','guava.png','mango.png',
   'orange.png','papaya.png','pear.png','pineapple.png','plum.png',
-  'pomegranate.png','strawberry.png','watermelon.png','bomb.png'
+  'pomegranate.png','strawberry.png','watermelon.png'
 ];
+const BOMB_IMG = 'bomb.png';
 
-const GRAVITY = 0.25;
-const FRUIT_SIZE = 100;
-const THROW_VY_MIN = 12;
-const THROW_VY_MAX = 18;
-const VX_MAX = 2.5;
-const SPAWN_INTERVAL = 700;
+const AREA = document.getElementById('gameArea');
+const BLADE_CANVAS = document.getElementById('bladeCanvas');
+const PART_CANVAS = document.getElementById('particles');
+const START_BTN = document.getElementById('startBtn');
+const PAUSE_BTN = document.getElementById('pauseBtn');
+const RESTART_BTN = document.getElementById('restartBtn');
+const GAMEOVER_EL = document.getElementById('gameOver');
+const FINAL_SCORE = document.getElementById('finalScore');
+const SCORE_EL = document.getElementById('score');
+const LIVES_EL = document.getElementById('lives');
+const COINS_EL = document.getElementById('coins');
+const LEVEL_EL = document.getElementById('level');
+const SLICE_FLASH = document.getElementById('sliceFlash');
+const DBG = document.getElementById('dbg');
+const DBG_INNER = document.getElementById('dbgInner');
+const TOGGLE_CONSOLE = document.getElementById('toggleConsole');
 
-const area = document.getElementById('gameArea');
-const bladeCanvas = document.getElementById('bladeCanvas');
-const particleCanvas = document.getElementById('particleCanvas');
-const bctx = bladeCanvas.getContext('2d');
-const pctx = particleCanvas.getContext('2d');
-const startBtn = document.getElementById('startBtn');
-const pauseBtn = document.getElementById('pauseBtn');
-const restartBtn = document.getElementById('restartBtn');
-const gameOver = document.getElementById('gameOver');
-const finalScore = document.getElementById('finalScore');
-const scoreEl = document.getElementById('score');
-const livesEl = document.getElementById('lives');
-const coinsEl = document.getElementById('coins');
+let width=0,height=0;
+let bctx = BLADE_CANVAS.getContext('2d');
+let pctx = PART_CANVAS.getContext('2d');
 
-let fruits = [];
+let running=false, paused=false;
+let fruits = []; // active fruits
 let particles = [];
-let cache = {};
-let running = false;
-let paused = false;
+let bladePoints = [];
 let spawnTimer = null;
-let score = 0, lives = 3, coins = 0;
+let score=0, lives=3, coins=0, level=1;
+let preloadCache = {};
+let spawnInterval = 700; // ms
+const GRAVITY = 0.28;
+const FRUIT_W = 110; // base width (will scale responsively)
+const MIN_VY = 14;
+const MAX_VY = 18;
+const VX_MAX = 2.4;
 
-function resizeCanvas(){
-  bladeCanvas.width = particleCanvas.width = area.offsetWidth;
-  bladeCanvas.height = particleCanvas.height = area.offsetHeight;
-}
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
+/* --------- UTIL & PRELOAD ---------- */
+function logDbg(s){ DBG_INNER.innerText += '['+new Date().toLocaleTimeString()+'] '+s+"\n"; DBG_INNER.scrollTop = DBG_INNER.scrollHeight; }
+TOGGLE_CONSOLE.addEventListener('click', ()=>{ DBG.style.display = DBG.style.display==='none' ? 'block':'none'; });
 
-function preloadImages(){
-  IMAGES.forEach(name=>{
-    const img = new Image();
-    img.src = IMG_PATH + name;
-    cache[name] = img;
+function preloadAll(){
+  const all = FRUIT_LIST.concat([BOMB_IMG]);
+  const promises = all.map(name=>{
+    return new Promise((res)=>{
+      const img = new Image();
+      img.onload = ()=>{ preloadCache[name] = img; logDbg('loaded '+name); res(); }
+      img.onerror = ()=>{ logDbg('failed: '+name); res(); }
+      img.src = IMG_PATH + name;
+    });
   });
+  return Promise.all(promises);
 }
-preloadImages();
 
-function rand(min,max){ return Math.random()*(max-min)+min; }
+/* --------- LAYOUT / RESIZE ---------- */
+function resize(){
+  const rect = AREA.getBoundingClientRect();
+  width = rect.width; height = rect.height;
+  BLADE_CANVAS.width = PART_CANVAS.width = Math.max(1, Math.floor(width));
+  BLADE_CANVAS.height = PART_CANVAS.height = Math.max(1, Math.floor(height));
+}
+window.addEventListener('resize', ()=>{ resize(); });
+setTimeout(resize,60);
 
-function spawnFruit(){
+/* ------- SPAWN / PHYSICS / RENDER ------- */
+function spawn(){
   if(!running || paused) return;
-  const names = IMAGES.filter(n=>cache[n]);
-  const name = Math.random()<0.1 ? 'bomb.png' : names[Math.floor(Math.random()*names.length)];
-  const img = cache[name];
-  const x = rand(40, area.offsetWidth-40);
-  const y = area.offsetHeight + 50;
-  const vx = rand(-VX_MAX, VX_MAX);
-  const vy = -rand(THROW_VY_MIN, THROW_VY_MAX);
+  // choose name (10% bomb)
+  const isBomb = Math.random() < 0.09;
+  const pool = FRUIT_LIST;
+  const name = isBomb ? BOMB_IMG : pool[Math.floor(Math.random()*pool.length)];
+  const img = preloadCache[name];
+  if(!img) { logDbg('spawn fallback: '+name+' (missing)'); return; }
+
+  // starting below bottom so it rises up
+  const x = Math.random()*(width-80) + 40;
+  const y = height + 60;
+  const vx = (Math.random()*2-1)*VX_MAX;
+  const vy = - (MIN_VY + Math.random()*(MAX_VY-MIN_VY));
   const el = document.createElement('img');
   el.src = img.src;
   el.className = 'fruit';
-  el.style.left = x + 'px';
-  el.style.top = y + 'px';
-  area.appendChild(el);
-  fruits.push({el,x,y,vx,vy,rot:0,name});
+  el.style.width = Math.floor(FRUIT_W * (Math.min(width,700)/700 + 0.9)) + 'px'; // responsive slightly
+  el.style.left = x+'px';
+  el.style.top = y+'px';
+  AREA.appendChild(el);
+  const obj = {name,el,x,y,vx,vy,rot: (Math.random()*40-20),isBomb};
+  fruits.push(obj);
+  logDbg('spawned '+name + (preloadCache[name] ? ' (cached)':' (fallback)'));
 }
 
-function updatePhysics(){
+function update(dt){
+  // physics
   for(let i=fruits.length-1;i>=0;i--){
-    const f=fruits[i];
+    const f = fruits[i];
     f.vy += GRAVITY;
     f.x += f.vx;
     f.y += f.vy;
-    f.rot += 3;
+    f.rot += f.vx*2;
     f.el.style.left = f.x+'px';
     f.el.style.top = f.y+'px';
-    f.el.style.transform=`translate(-50%,-50%) rotate(${f.rot}deg)`;
-    if(f.y > area.offsetHeight + 120){
+    f.el.style.transform = `translate(-50%,-50%) rotate(${f.rot}deg)`;
+    // remove if fallen below
+    if(f.y > height + 140){
+      // miss -> nothing happens per request
       f.el.remove();
       fruits.splice(i,1);
     }
   }
+
+  // particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];
+    p.vy += GRAVITY*0.06;
+    p.x += p.vx; p.y += p.vy;
+    p.age += dt;
+    if(p.age > p.life) particles.splice(i,1);
+  }
 }
 
-function spawnParticles(x,y,color,count=20){
+function draw(dt){
+  // blade trail
+  bctx.clearRect(0,0,BLADE_CANVAS.width,BLADE_CANVAS.height);
+  if(bladePoints.length>1){
+    bctx.lineJoin='round'; bctx.lineCap='round';
+    for(let i=0;i<bladePoints.length-1;i++){
+      const a=bladePoints[i], b=bladePoints[i+1];
+      const age = Date.now()-a.t;
+      const alpha = Math.max(0,1 - age/350);
+      bctx.globalAlpha = alpha;
+      bctx.strokeStyle = `rgba(34,197,94,${0.95*alpha})`;
+      bctx.lineWidth = 16*alpha;
+      bctx.beginPath(); bctx.moveTo(a.x,a.y); bctx.lineTo(b.x,b.y); bctx.stroke();
+    }
+  }
+
+  // particles draw
+  pctx.clearRect(0,0,PART_CANVAS.width,PART_CANVAS.height);
+  particles.forEach(p=>{
+    pctx.globalAlpha = 1 - (p.age/p.life);
+    pctx.fillStyle = p.color;
+    pctx.beginPath();
+    pctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+    pctx.fill();
+  });
+}
+
+let lastTime = performance.now();
+function loop(now){
+  const dt = now - lastTime;
+  lastTime = now;
+  if(running && !paused){
+    update(dt/16);
+    draw(dt/16);
+  }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+/* ---------- SLICE DETECTION & EFFECTS ---------- */
+function pointInRect(px,py,rect){
+  return px >= rect.left && px <= rect.right && py >= rect.top && py <= rect.bottom;
+}
+
+function handleSlice(px,py){
+  // iterate from top-most fruit (end of array)
+  for(let i=fruits.length-1;i>=0;i--){
+    const f = fruits[i];
+    const r = f.el.getBoundingClientRect();
+    if(pointInRect(px,py,r)){
+      const cx = f.x, cy = f.y;
+      if(f.isBomb){
+        // bomb sliced
+        lives = Math.max(0, lives-1);
+        spawnParticles(cx,cy,'#ff4d4f', 30);
+        screenShake();
+        logDbg('Bomb sliced. lives='+lives);
+        if(lives<=0) endGame();
+      } else {
+        // normal fruit sliced -> produce halves
+        score += 10; coins += 1;
+        spawnParticles(cx,cy,'#ffd54f', 16);
+        createHalves(f, px,py);
+      }
+      updateHUD();
+      // remove original element & from array
+      try{ f.el.remove(); }catch(e){}
+      fruits.splice(i,1);
+      flashSlice(px,py);
+      return; // only one fruit per point
+    }
+  }
+}
+
+/* create two halves using clip-path and animate them apart */
+function createHalves(f, sx,sy){
+  // left half
+  const imgSrc = f.el.src;
+  const w = parseFloat(f.el.style.width) || FRUIT_W;
+  const left = document.createElement('img');
+  left.src = imgSrc;
+  left.className = 'half';
+  left.style.width = w+'px';
+  left.style.left = (f.x)+'px';
+  left.style.top = (f.y)+'px';
+  left.style.clipPath = 'polygon(0 0, 50% 0, 50% 100%, 0 100%)';
+  left.style.transform = `translate(-50%,-50%) rotate(${f.rot-8}deg)`;
+  left.style.transition = 'transform 900ms cubic-bezier(.17,.67,.3,1), top 900ms, left 900ms, opacity 900ms';
+  left.style.zIndex = 220;
+  AREA.appendChild(left);
+
+  // right half
+  const right = document.createElement('img');
+  right.src = imgSrc;
+  right.className = 'half';
+  right.style.width = w+'px';
+  right.style.left = (f.x)+'px';
+  right.style.top = (f.y)+'px';
+  right.style.clipPath = 'polygon(50% 0, 100% 0, 100% 100%, 50% 100%)';
+  right.style.transform = `translate(-50%,-50%) rotate(${f.rot+8}deg)`;
+  right.style.transition = 'transform 900ms cubic-bezier(.17,.67,.3,1), top 900ms, left 900ms, opacity 900ms';
+  right.style.zIndex = 220;
+  AREA.appendChild(right);
+
+  // animate halves outward & down
+  setTimeout(()=>{
+    left.style.left = (f.x - 60) + 'px';
+    left.style.top = (f.y + 110) + 'px';
+    left.style.transform = `translate(-50%,-50%) rotate(${f.rot-45}deg)`;
+    left.style.opacity = '0.02';
+    right.style.left = (f.x + 60) + 'px';
+    right.style.top = (f.y + 120) + 'px';
+    right.style.transform = `translate(-50%,-50%) rotate(${f.rot+45}deg)`;
+    right.style.opacity = '0.02';
+  }, 12);
+
+  // cleanup
+  setTimeout(()=>{ try{ left.remove(); right.remove(); }catch(e){} }, 1200);
+}
+
+/* quick particle burst */
+function spawnParticles(cx,cy,color,count=18){
   for(let i=0;i<count;i++){
     particles.push({
-      x,y,
-      vx:rand(-3,3),
-      vy:rand(-5,1),
-      life:rand(600,1000),
-      size:rand(4,8),
+      x: cx + (Math.random()*20-10),
+      y: cy + (Math.random()*20-10),
+      vx: (Math.random()*4 - 2),
+      vy: (Math.random()*-4 - 1),
+      size: Math.random()*5 + 2,
       color,
-      age:0
+      age:0,
+      life: 600 + Math.random()*600
     });
   }
 }
 
-function drawParticles(dt){
-  pctx.clearRect(0,0,particleCanvas.width,particleCanvas.height);
-  for(let i=particles.length-1;i>=0;i--){
-    const p=particles[i];
-    p.vy+=GRAVITY*0.3;
-    p.x+=p.vx; p.y+=p.vy;
-    p.age+=dt;
-    const alpha=Math.max(0,1-p.age/p.life);
-    pctx.globalAlpha=alpha;
-    pctx.fillStyle=p.color;
-    pctx.beginPath();
-    pctx.arc(p.x,p.y,p.size,0,Math.PI*2);
-    pctx.fill();
-    if(p.age>p.life)particles.splice(i,1);
-  }
+/* slice flash (thin white line fade) */
+function flashSlice(px,py){
+  const rect = AREA.getBoundingClientRect();
+  const flash = document.createElement('div');
+  flash.className = 'sliceFlash';
+  flash.style.left = (px - rect.left) + 'px';
+  flash.style.top = (py - rect.top) + 'px';
+  flash.style.width = '160px';
+  flash.style.height = '6px';
+  flash.style.background = 'linear-gradient(90deg, rgba(255,255,255,0.0), rgba(255,255,255,0.95), rgba(255,255,255,0.0))';
+  flash.style.transform = 'translate(-50%,-50%) rotate('+ (Math.random()*80-40) +'deg)';
+  flash.style.borderRadius = '4px';
+  flash.style.opacity = '0.95';
+  flash.style.zIndex = '500';
+  flash.style.pointerEvents = 'none';
+  flash.style.transition = 'opacity 420ms, transform 420ms';
+  AREA.appendChild(flash);
+  setTimeout(()=>{ flash.style.opacity = '0'; flash.style.transform += ' scale(1.2)'; }, 20);
+  setTimeout(()=> flash.remove(), 520);
 }
 
-let bladePoints=[];
-function addBladePoint(x,y){
-  const rect = area.getBoundingClientRect();
-  bladePoints.push({x:x-rect.left,y:y-rect.top,t:Date.now()});
-  if(bladePoints.length>30)bladePoints.shift();
-}
-function drawBlade(){
-  bctx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height);
-  if(bladePoints.length<2){requestAnimationFrame(drawBlade);return;}
-  for(let i=0;i<bladePoints.length-1;i++){
-    const p1=bladePoints[i],p2=bladePoints[i+1];
-    const alpha=1-(Date.now()-p1.t)/300;
-    if(alpha<=0)continue;
-    bctx.strokeStyle=`rgba(0,200,0,${alpha})`;
-    bctx.lineWidth=10*alpha;
-    bctx.beginPath();
-    bctx.moveTo(p1.x,p1.y);
-    bctx.lineTo(p2.x,p2.y);
-    bctx.stroke();
-  }
-  bladePoints=bladePoints.filter(p=>Date.now()-p.t<350);
-  requestAnimationFrame(drawBlade);
-}
-drawBlade();
-
-function checkSlice(x,y){
-  for(let i=fruits.length-1;i>=0;i--){
-    const f=fruits[i];
-    const r=f.el.getBoundingClientRect();
-    if(x>r.left && x<r.right && y>r.top && y<r.bottom){
-      if(f.name==='bomb.png'){
-        lives--;
-        spawnParticles(f.x,f.y,'#ff3333',40);
-        screenShake();
-        if(lives<=0)return endGame();
-      }else{
-        score+=10; coins++;
-        spawnParticles(f.x,f.y,'#ffd54f',20);
-      }
-      updateHUD();
-      f.el.remove();
-      fruits.splice(i,1);
-    }
-  }
-}
-
-function updateHUD(){
-  scoreEl.textContent=score;
-  livesEl.textContent=lives;
-  coinsEl.textContent=coins;
-}
-
+/* small screen shake */
 function screenShake(){
-  const wrapper=document.getElementById('gameWrapper');
-  wrapper.style.transition='transform 0.1s';
-  wrapper.style.transform='translate(10px,5px)';
-  setTimeout(()=>wrapper.style.transform='translate(0,0)',100);
+  const gw = document.getElementById('gameWrapper');
+  gw.style.transition = 'transform 80ms';
+  gw.style.transform = 'translate(8px,4px)';
+  setTimeout(()=>{ gw.style.transform = ''; }, 90);
 }
 
-function gameLoop(){
-  if(!running)return;
-  if(!paused){
-    updatePhysics();
-    drawParticles(16);
-  }
-  requestAnimationFrame(gameLoop);
+/* blade points handler */
+function addBladePoint(pageX,pageY){
+  const r = AREA.getBoundingClientRect();
+  const x = pageX - r.left;
+  const y = pageY - r.top;
+  bladePoints.push({x,y,t:Date.now()});
+  if(bladePoints.length>30) bladePoints.shift();
+  // check slice immediately on active pointer
+  handleSlice(pageX,pageY);
 }
 
+/* pointer events */
+let pointerActive = false;
+AREA.addEventListener('pointerdown', (e)=>{ pointerActive = true; addBladePoint(e.pageX,e.pageY); });
+window.addEventListener('pointermove', (e)=>{ if(pointerActive) addBladePoint(e.pageX,e.pageY); });
+window.addEventListener('pointerup', ()=>{ pointerActive=false; bladePoints=[]; });
+
+/* ------------- HUD / Game Control ------------- */
+function updateHUD(){ SCORE_EL.textContent = score; LIVES_EL.textContent = lives; COINS_EL.textContent = coins; LEVEL_EL.textContent = level; }
 function startGame(){
-  if(running)return;
-  running=true;
-  paused=false;
-  startBtn.style.display='none';
-  gameOver.style.display='none';
-  score=0;lives=3;coins=0;
-  updateHUD();
-  spawnTimer=setInterval(spawnFruit,SPAWN_INTERVAL);
-  gameLoop();
+  if(running) return;
+  running = true; paused=false;
+  START_BTN.style.display='none'; GAMEOVER_EL.style.display='none';
+  score=0; lives=3; coins=0; level=1; updateHUD();
+  // spawn loop
+  spawnTimer = setInterval(()=> spawn(), spawnInterval);
+  logDbg('[FruitCut] Game started');
 }
-
+function pauseGame(){ if(!running) return; paused = !paused; PAUSE_BTN.textContent = paused ? 'Resume' : 'Pause'; }
 function endGame(){
-  running=false;
+  running = false;
   clearInterval(spawnTimer);
-  finalScore.textContent=score;
-  gameOver.style.display='flex';
+  FINAL_SCORE.textContent = score;
+  GAMEOVER_EL.style.display = 'flex';
+  START_BTN.style.display='none';
+  logDbg('[FruitCut] Game over score='+score);
 }
-
-function pauseGame(){
-  if(!running)return;
-  paused=!paused;
-  pauseBtn.textContent=paused?'Resume':'Pause';
-}
-
 function restartGame(){
-  fruits.forEach(f=>f.el.remove());
-  fruits=[];
-  particles=[];
-  running=false;
+  // clear fruits + particles
+  fruits.forEach(f=>{ try{ f.el.remove(); }catch(e){} });
+  fruits=[]; particles=[]; updateHUD();
+  GAMEOVER_EL.style.display='none';
   startGame();
 }
 
-area.addEventListener('pointermove',e=>{
-  addBladePoint(e.clientX,e.clientY);
-  checkSlice(e.clientX,e.clientY);
-});
+/* update loop — draws blade trail based on bladePoints too */
+(function tick(){
+  // resize if needed
+  const rect = AREA.getBoundingClientRect();
+  if(rect.width !== width || rect.height !== height){ resize(); width = rect.width; height = rect.height; }
+  // animate blade fade
+  // draw blade (canvas cleared each frame)
+  bctx.clearRect(0,0,BLADE_CANVAS.width,BLADE_CANVAS.height);
+  if(bladePoints.length>1){
+    bctx.lineWidth = 14; bctx.lineCap='round'; bctx.lineJoin='round';
+    for(let i=0;i<bladePoints.length-1;i++){
+      const a = bladePoints[i], b = bladePoints[i+1];
+      const age = Date.now() - a.t;
+      const alpha = Math.max(0,1 - age/320);
+      bctx.strokeStyle = `rgba(34,197,94,${0.95*alpha})`;
+      bctx.globalAlpha = alpha;
+      bctx.beginPath(); bctx.moveTo(a.x,a.y); bctx.lineTo(b.x,b.y); bctx.stroke();
+    }
+  }
+  // update physics & particles
+  const now = performance.now();
+  // simple physics step
+  // use small sub-step to keep consistent
+  if(running && !paused){
+    update(1);
+  }
+  draw(1);
+  requestAnimationFrame(tick);
+})();
 
-startBtn.onclick=startGame;
-pauseBtn.onclick=pauseGame;
-restartBtn.onclick=restartGame;
+/* ---------- EVENTS ---------- */
+START_BTN.addEventListener('click', ()=> startGame());
+PAUSE_BTN.addEventListener('click', ()=> pauseGame());
+RESTART_BTN.addEventListener('click', ()=> restartGame());
+document.getElementById('restartBtn').addEventListener('click', ()=> restartGame());
+
+/* debug logging */
+function logDbg(s){ if(DBG_INNER) DBG_INNER.innerText += s + "\n"; }
+
+/* ---------- PRELOAD + AUTO START ---------- */
+preloadAll().then(()=>{
+  logDbg('[FruitCut] Preload finished');
+  // try auto-start (some mobile browsers require user activation — show start button)
+  setTimeout(()=>{ if(!running) { try{ startGame(); }catch(e){} } }, 500);
+});
 </script>
 </body>
-      </html>
+  </html>
