@@ -1,196 +1,522 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>🍉 Fruit Cut — Offline + Fast Load</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>🍉 Fruit Cut — Fast Preload + Offline</title>
 <style>
-:root{--ui:#f4f7fb;--btn:#111}
+:root{--bg:#f4f7fb;--panel:#fff;--accent:#22c55e;--btn:#111}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-body{margin:0;font-family:Inter,system-ui,Roboto,sans-serif;background:var(--ui);color:#111;overflow:hidden}
-.container{max-width:860px;margin:auto;padding:12px}
-h1{text-align:center;margin:8px 0 10px}
-.hud{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:8px}
-.stat{background:#fff;padding:8px 12px;border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.1);font-weight:700}
-#gameWrapper{position:relative;border-radius:14px;overflow:hidden;background:linear-gradient(180deg,#bfe9ff,#f6f7fb);height:70vh;min-height:420px}
-#gameArea{position:absolute;inset:0;touch-action:none;z-index:2}
-canvas{position:absolute;inset:0;z-index:5;pointer-events:none}
-.fruit,.half{position:absolute;transform:translate(-50%,-50%);user-select:none;pointer-events:none;z-index:3}
-#bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;background:var(--btn);color:#fff;padding:14px 18px;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,0.25)}
-.controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;padding:10px}
-.btn{background:#fff;border:0;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
-.consoleBox{position:absolute;right:8px;top:8px;background:rgba(0,0,0,0.72);color:#fff;padding:8px;border-radius:8px;z-index:20;max-height:45%;overflow:auto;font-size:12px;font-family:monospace;display:none}
-#loaderOverlay{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fff}
-#loaderBar{width:240px;height:12px;background:#eee;border-radius:12px;overflow:hidden;margin-top:10px}
-#loaderFill{height:100%;width:0;background:linear-gradient(90deg,#22c55e,#06b6d4)}
-#loaderText{font-weight:700;margin-bottom:4px}
+body{margin:0;font-family:Inter,system-ui,Roboto,Arial;background:var(--bg);color:#111}
+.container{max-width:960px;margin:0 auto;padding:12px}
+h1{text-align:center;margin:8px 0}
+.hud{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:8px}
+.stat{background:var(--panel);padding:8px 12px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.04);font-weight:700}
+#gameWrap{position:relative;margin:0 auto;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#ccecff,#f3efe9);height:68vh;min-height:420px}
+#gameCanvas,#effectsCanvas{position:absolute;inset:0;display:block;width:100%;height:100%}
+#bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:40;background:var(--btn);color:#fff;padding:14px 20px;border-radius:12px;cursor:pointer;box-shadow:0 10px 30px rgba(0,0,0,0.22);font-weight:800}
+.controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;padding:12px}
+.btn{background:var(--panel);border:0;padding:10px 14px;border-radius:12px;cursor:pointer;font-weight:700;box-shadow:0 8px 18px rgba(2,6,23,0.06)}
+#loader{position:absolute;left:12px;top:12px;background:rgba(255,255,255,0.9);padding:8px;border-radius:8px;z-index:50}
+#console{position:absolute;right:8px;top:8px;background:rgba(0,0,0,0.78);color:#fff;padding:8px;border-radius:8px;z-index:60;max-height:50%;overflow:auto;font-family:monospace;font-size:12px;display:none}
 </style>
 </head>
 <body>
-<div class="container">
-  <h1>🍉 Fruit Cut — Offline + Fast Load</h1>
-  <div class="hud">
-    <div class="stat">Score: <span id="score">0</span></div>
-    <div class="stat">Lives: <span id="lives">3</span></div>
-    <div class="stat">Coins: <span id="coins">0</span></div>
-  </div>
+  <div class="container">
+    <h1>🍉 Fruit Cut — Fast Preload + Offline</h1>
+    <div class="hud">
+      <div class="stat">Score: <span id="score">0</span></div>
+      <div class="stat">Lives: <span id="lives">3</span></div>
+      <div class="stat">Coins: <span id="coins">0</span></div>
+    </div>
 
-  <div id="gameWrapper">
-    <div id="gameArea"></div>
-    <canvas id="bladeCanvas"></canvas>
-    <canvas id="particles"></canvas>
-    <div id="bigStart">START</div>
-    <div id="consoleBox" class="consoleBox"></div>
-    <div id="loaderOverlay">
-      <div id="loaderText">Loading images...</div>
-      <div id="loaderBar"><div id="loaderFill"></div></div>
+    <div id="gameWrap">
+      <canvas id="gameCanvas"></canvas>
+      <canvas id="effectsCanvas"></canvas>
+      <div id="loader">Loading images: <span id="loadedCount">0</span>/<span id="totalCount">0</span></div>
+      <div id="bigStart">START</div>
+      <div id="console"></div>
+    </div>
+
+    <div class="controls">
+      <button id="startBtn" class="btn" disabled>Start</button>
+      <button id="pauseBtn" class="btn">Pause</button>
+      <button id="restartBtn" class="btn">Restart</button>
+      <button id="toggleConsole" class="btn">Toggle Console</button>
     </div>
   </div>
 
-  <div class="controls">
-    <button id="startBtn" class="btn" disabled>Start</button>
-    <button id="pauseBtn" class="btn">Pause</button>
-    <button id="restartBtn" class="btn">Restart</button>
-    <button id="toggleConsole" class="btn">Console</button>
-  </div>
-</div>
-
 <script>
-const FRUITS=['apple.png','banana.png','cantaloupe.png','guava.png','mango.png','orange.png','papaya.png','pear.png','pineapple.png','plum.png','pomegranate.png','strawberry.png','watermelon.png'];
-const BOMB='bomb.png';
-const PATH='images/';
+/* ---------- CONFIG ---------- */
+const IMG_PATH = 'images/'; // folder with fruit PNGs
+const FRUITS = ['apple.png','banana.png','cantaloupe.png','guava.png','mango.png','orange.png','papaya.png','pear.png','pineapple.png','plum.png','pomegranate.png','strawberry.png','watermelon.png'];
+const BOMB = 'bomb.png';
+const ALL = [...FRUITS, BOMB];
 
-const loaderOverlay=document.getElementById('loaderOverlay');
-const loaderFill=document.getElementById('loaderFill');
-const loaderText=document.getElementById('loaderText');
-const area=document.getElementById('gameArea');
-const startBtn=document.getElementById('startBtn');
-const bigStart=document.getElementById('bigStart');
-const pauseBtn=document.getElementById('pauseBtn');
-const restartBtn=document.getElementById('restartBtn');
-const consoleBox=document.getElementById('consoleBox');
-const toggleConsole=document.getElementById('toggleConsole');
-const scoreEl=document.getElementById('score');
-const livesEl=document.getElementById('lives');
-const coinsEl=document.getElementById('coins');
-const bctx=document.getElementById('bladeCanvas').getContext('2d');
-const pctx=document.getElementById('particles').getContext('2d');
+const CACHE_NAME = 'fruitcut-assets-v2';
+const CONCURRENCY = 3;         // number of concurrent fetches (lower -> less network spikes)
+const SPAWN_MS = 700;          // spawn interval
+const GRAVITY = 0.35;
+const INITIAL_SPEED_MIN = 12;
+const INITIAL_SPEED_MAX = 16;
+const FRUIT_BASE_WIDTH_PCT = 0.14; // base size relative to canvas width (adjust small->big)
 
-let cache={},running=false,paused=false,score=0,lives=3,coins=0,fruits=[],particles=[],blade=[];
+/* ---------- UTIL / DOM ---------- */
+const gameCanvas = document.getElementById('gameCanvas');
+const fxCanvas = document.getElementById('effectsCanvas');
+const ctx = gameCanvas.getContext('2d');
+const fx = fxCanvas.getContext('2d');
+const startBtn = document.getElementById('startBtn');
+const bigStart = document.getElementById('bigStart');
+const pauseBtn = document.getElementById('pauseBtn');
+const restartBtn = document.getElementById('restartBtn');
+const toggleConsole = document.getElementById('toggleConsole');
+const consoleBox = document.getElementById('console');
+const loader = document.getElementById('loader');
+const loadedCountEl = document.getElementById('loadedCount');
+const totalCountEl = document.getElementById('totalCount');
+const scoreEl = document.getElementById('score');
+const livesEl = document.getElementById('lives');
+const coinsEl = document.getElementById('coins');
 
-function log(...a){const s='[FruitCut] '+a.join(' ');console.log(s);const d=document.createElement('div');d.textContent=s;consoleBox.prepend(d);}
-function rand(a,b){return Math.random()*(b-a)+a;}
-function resize(){const r=area.getBoundingClientRect();bctx.canvas.width=r.width;bctx.canvas.height=r.height;pctx.canvas.width=r.width;pctx.canvas.height=r.height;}
-window.addEventListener('resize',resize);
+/* ---------- STATE ---------- */
+let imageBitmapCache = new Map(); // name -> ImageBitmap
+let running=false, paused=false, score=0, lives=3, coins=0;
+let areaW=0, areaH=0;
+let spawnTimer = null;
+let pointerTrail = []; // blade trail points
+let fruits = []; // active fruit objects
 
-async function preload(){
-  const all=[...FRUITS,BOMB];let loaded=0;
-  await Promise.all(all.map(n=>new Promise(res=>{
-    const i=new Image();i.onload=()=>{cache[n]=i;loaded++;update();res();};
-    i.onerror=()=>{log('fail',n);loaded++;update();res();};
-    i.src=PATH+n;
-    function update(){loaderFill.style.width=(loaded/all.length*100)+'%';loaderText.textContent='Loading '+loaded+'/'+all.length;}
-  })));
-  loaderOverlay.style.display='none';
-  startBtn.disabled=false;bigStart.style.display='block';
-  log('Preload complete, cached',Object.keys(cache).length);
+/* ---------- logging (console area) ---------- */
+function log(...args){
+  const s = '[FruitCut] ' + args.join(' ');
+  console.log(s);
+  const d = document.createElement('div'); d.textContent = s;
+  consoleBox.prepend(d);
 }
 
-function spawn(){
-  if(!running||paused)return;
-  const isBomb=Math.random()<0.1;
-  const name=isBomb?BOMB:FRUITS[Math.floor(Math.random()*FRUITS.length)];
-  const img=cache[name]||new Image();img.src=PATH+name;
-  const el=document.createElement('img');el.src=img.src;el.className='fruit';
-  const size=Math.max(70,Math.min(120,Math.floor(area.clientWidth*0.15)));
-  el.style.width=size+'px';
-  const x=rand(60,area.clientWidth-60),y=area.clientHeight+40;
-  el.style.left=x+'px';el.style.top=y+'px';
-  area.appendChild(el);
-  fruits.push({name,isBomb,x,y,vx:rand(-2,2),vy:-rand(12,15),rot:rand(-20,20),el,sliced:false});
+/* ---------- resize ---------- */
+function resizeCanvas(){
+  const r = gameCanvas.getBoundingClientRect();
+  areaW = Math.floor(r.width); areaH = Math.floor(r.height);
+  gameCanvas.width = areaW; gameCanvas.height = areaH;
+  fxCanvas.width = areaW; fxCanvas.height = areaH;
 }
-function update(){
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+/* ---------- preload with concurrency + createImageBitmap + Cache API ---------- */
+async function preloadImages(list){
+  totalCountEl.textContent = list.length;
+  let loaded = 0;
+  const queue = list.slice(); // clone
+  const active = [];
+  const cache = await caches.open(CACHE_NAME);
+
+  function next(){
+    if(!queue.length) return Promise.resolve();
+    const name = queue.shift();
+    return fetchImage(name).then(()=>{ loaded++; loadedCountEl.textContent = loaded; }).catch(e=>{
+      log('failed preload', name, e);
+    }).then(next);
+  }
+
+  function fetchImage(name){
+    return new Promise(async (resolve,reject)=>{
+      try{
+        // try cache first
+        const req = new Request(IMG_PATH + name, {cache:'force-cache'});
+        const cached = await cache.match(req);
+        if(cached){
+          const blob = await cached.blob();
+          const imgBitmap = await createImageBitmap(blob);
+          imageBitmapCache.set(name, imgBitmap);
+          log('cached', name);
+          return resolve();
+        }
+        // fetch from network
+        const resp = await fetch(IMG_PATH + name, {mode:'same-origin',cache:'no-store'});
+        if(!resp.ok) throw new Error('HTTP '+resp.status);
+        // put in cache (for offline)
+        cache.put(req, resp.clone()).catch(()=>{/*ignore*/});
+        const blob = await resp.blob();
+        // decode off main thread where supported
+        const imgBitmap = await createImageBitmap(blob);
+        imageBitmapCache.set(name, imgBitmap);
+        log('loaded', name);
+        resolve();
+      }catch(err){
+        log('error loading', name, err.message || err);
+        reject(err);
+      }
+    });
+  }
+
+  // run concurrency runners
+  for(let i=0;i<CONCURRENCY;i++) active.push(next());
+  await Promise.all(active);
+  loader.style.display='none';
+}
+
+/* ---------- spawn fruit (draw via canvas) ---------- */
+function spawnFruit(){
+  const isBomb = Math.random() < 0.10;
+  const name = isBomb ? BOMB : FRUITS[Math.floor(Math.random()*FRUITS.length)];
+  const img = imageBitmapCache.get(name);
+  const baseW = Math.max(56, Math.floor(areaW * FRUIT_BASE_WIDTH_PCT));
+  const scale = rand(0.9,1.4);
+  const w = Math.floor(baseW * scale);
+  const h = Math.floor(w * (img ? img.height / img.width : 1));
+  const x = rand(w/2 + 16, areaW - w/2 - 16);
+  const y = areaH + h/2 + 20; // start below screen
+  const vy = -rand(INITIAL_SPEED_MIN, INITIAL_SPEED_MAX);
+  const vx = rand(-2.2, 2.2);
+  const rot = rand(-0.4, 0.4);
+  fruits.push({name, img, x, y, vx, vy, w, h, rot, sliced:false, isBomb});
+}
+
+/* ---------- helper --------- */
+function rand(a,b){return Math.random()*(b-a)+a}
+
+/* ---------- main update/draw loop ---------- */
+function updatePhysics(dt){
   for(let i=fruits.length-1;i>=0;i--){
-    const f=fruits[i];f.vy+=0.35;f.x+=f.vx;f.y+=f.vy;f.el.style.left=f.x+'px';f.el.style.top=f.y+'px';
-    if(f.y>area.clientHeight+80){f.el.remove();fruits.splice(i,1);}
+    const f = fruits[i];
+    f.vy += GRAVITY;
+    f.x += f.vx;
+    f.y += f.vy;
+    f.rot += 0.01 * (f.vx);
+    // off bottom -> remove (for now no life penalty on miss)
+    if(f.y - f.h/2 > areaH + 40){
+      // just remove (we can decide whether missing reduces life)
+      fruits.splice(i,1);
+    }
   }
 }
+
 function draw(){
-  bctx.clearRect(0,0,bctx.canvas.width,bctx.canvas.height);
-  if(blade.length>1){
-    bctx.strokeStyle='#22c55e';bctx.lineWidth=10;bctx.lineJoin='round';
-    bctx.beginPath();bctx.moveTo(blade[0].x,blade[0].y);
-    blade.forEach(p=>bctx.lineTo(p.x,p.y));bctx.stroke();
+  ctx.clearRect(0,0,areaW,areaH);
+  // draw fruits
+  for(const f of fruits){
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.rotate(f.rot);
+    if(f.img){
+      ctx.drawImage(f.img, -f.w/2, -f.h/2, f.w, f.h);
+    } else {
+      // fallback: draw simple circle
+      ctx.fillStyle = '#f59e0b';
+      ctx.beginPath(); ctx.ellipse(0,0, f.w/2, f.h/2, 0, 0, Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  // blade trail on fx canvas
+  fx.clearRect(0,0,areaW,areaH);
+  if(pointerTrail.length>1){
+    fx.lineJoin='round';
+    fx.lineCap='round';
+    fx.strokeStyle = 'rgba(34,197,94,0.85)';
+    for(let i=0;i<pointerTrail.length-1;i++){
+      const p1 = pointerTrail[i], p2 = pointerTrail[i+1];
+      const size = 8 * (1 - i/pointerTrail.length) + 2;
+      fx.globalAlpha = 1 - i/pointerTrail.length;
+      fx.lineWidth = size;
+      fx.beginPath(); fx.moveTo(p1.x,p1.y); fx.lineTo(p2.x,p2.y); fx.stroke();
+    }
+    fx.globalAlpha = 1;
   }
 }
-function slice(f){
-  if(f.sliced)return;f.sliced=true;
-  if(f.isBomb){lives--;log('Bomb hit');if(lives<=0)end();}
-  else{score+=10;coins++;}
-  f.el.remove();fruits=fruits.filter(x=>x!==f);
+
+/* ---------- pointer / slicing detection ---------- */
+let pointerDown = false;
+const MAX_TRAIL = 24;
+document.addEventListener('pointerdown', (e)=>{
+  pointerDown = true;
+  addPoint(e);
+});
+document.addEventListener('pointermove', (e)=>{
+  if(!pointerDown || paused || !running) return;
+  addPoint(e); checkSlice(e);
+});
+document.addEventListener('pointerup', ()=>{pointerDown=false; pointerTrail=[];});
+document.addEventListener('pointercancel', ()=>{pointerDown=false; pointerTrail=[];});
+
+function addPoint(e){
+  const rect = gameCanvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  pointerTrail.push({x,y,t:Date.now()});
+  if(pointerTrail.length>MAX_TRAIL) pointerTrail.shift();
+}
+
+/* rectangle-based slice test: if last pointer intersects fruit bounding box */
+function checkSlice(e){
+  const rect = gameCanvas.getBoundingClientRect();
+  const px = e.clientX - rect.left, py = e.clientY - rect.top;
+  for(let i=fruits.length-1;i>=0;i--){
+    const f = fruits[i];
+    if(f.sliced) continue;
+    // simple bounding box check (fast)
+    if(px > f.x - f.w/2 && px < f.x + f.w/2 && py > f.y - f.h/2 && py < f.y + f.h/2){
+      doSlice(f);
+    }
+  }
+}
+
+function doSlice(f){
+  if(f.sliced) return;
+  f.sliced = true;
+  // spawn halves + particle effect
+  score += f.isBomb ? 0 : 10;
+  if(f.isBomb){ lives--; log('Bomb sliced. lives=', lives); if(lives<=0) gameOver(); }
+  else { coins++; spawnParticles(f.x,f.y, f.w); }
+  // create two halves that fall/rotate separately (a lightweight effect)
+  createHalf(f, -1);
+  createHalf(f, +1);
+  // remove original from array
+  const idx = fruits.indexOf(f);
+  if(idx>=0) fruits.splice(idx,1);
   updateHUD();
 }
-function end(){running=false;alert('Game Over! Score: '+score);}
-function updateHUD(){scoreEl.textContent=score;livesEl.textContent=lives;coinsEl.textContent=coins;}
-function loop(){if(running&&!paused){update();draw();}requestAnimationFrame(loop);}
 
-area.addEventListener('pointermove',e=>{
-  if(!running||paused)return;
-  const r=area.getBoundingClientRect(),x=e.clientX-r.left,y=e.clientY-r.top;
-  blade.push({x,y});if(blade.length>15)blade.shift();
-  fruits.forEach(f=>{
-    const fr=f.el.getBoundingClientRect();
-    if(e.clientX>fr.left&&e.clientX<fr.right&&e.clientY>fr.top&&e.clientY<fr.bottom)slice(f);
-  });
-});
-area.addEventListener('pointerup',()=>blade=[]);
-
-function start(){if(running)return;running=true;paused=false;bigStart.style.display='none';setInterval(spawn,700);}
-function pause(){paused=!paused;pauseBtn.textContent=paused?'Resume':'Pause';}
-function restart(){location.reload();}
-
-startBtn.onclick=start;bigStart.onclick=start;
-pauseBtn.onclick=pause;restartBtn.onclick=restart;
-toggleConsole.onclick=()=>consoleBox.style.display=consoleBox.style.display==='block'?'none':'block';
-
-resize();preload();loop();
-
-// ---- Service Worker Registration for Offline ----
-if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('sw.js').then(()=>log('ServiceWorker registered')).catch(e=>log('SW fail',e));
-  });
+function createHalf(f, dir){
+  // small falling sliced piece drawn as rectangle with bitmap (we'll push to fruits as 'half' for update/draw)
+  const half = {
+    img: f.img,
+    x: f.x + dir*(f.w*0.2),
+    y: f.y,
+    vx: f.vx + dir*2,
+    vy: f.vy * 0.2 + 2,
+    rot: f.rot + dir*0.4,
+    w: f.w*0.6,
+    h: f.h*0.6,
+    isHalf:true,
+    life: 2000, // ms to exist
+    born: performance.now()
+  };
+  fruits.push(half);
 }
-</script>
 
-<!-- Service Worker inline -->
-<script id="sw-script" type="javascript/worker">
-const CACHE='fruitcut-v1';
-const FILES=[
-  './',
-  './index.html',
-  './images/apple.png','./images/banana.png','./images/bomb.png',
-  './images/orange.png','./images/mango.png','./images/papaya.png',
-  './images/pineapple.png','./images/strawberry.png','./images/watermelon.png'
-];
-self.addEventListener('install',e=>{
-  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(FILES)));
-});
-self.addEventListener('fetch',e=>{
-  e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{
-    const copy=res.clone();caches.open(CACHE).then(c=>c.put(e.request,copy));return res;
-  })));
-});
-</script>
+function spawnParticles(x,y,scale){
+  // simple circle particles drawn on fx canvas
+  for(let i=0;i<10;i++){
+    particles.push({
+      x, y,
+      vx: rand(-3,3), vy: rand(-6,-1),
+      r: rand(2,6) * (scale/60),
+      life: rand(400,900),
+      born: performance.now(),
+      color: `rgba(255,255,255,${rand(0.4,1)})`
+    });
+  }
+}
 
-<script>
-// Write inline service worker to sw.js at runtime (GitHub Pages safe)
-(async()=>{
-  const code=document.getElementById('sw-script').textContent;
-  const blob=new Blob([code],{type:'text/javascript'});
-  const swURL=URL.createObjectURL(blob);
-  navigator.serviceWorker.register(swURL);
-})();
+/* ---------- particle update/draw (on fx canvas) ---------- */
+function updateParticles(now){
+  // update particles
+  for(let i=particles.length-1;i>=0;i--){
+    const p = particles[i];
+    const t = now - p.born;
+    if(t>p.life){ particles.splice(i,1); continue; }
+    p.vy += 0.15; p.x += p.vx; p.y += p.vy;
+  }
+  // draw (append to fx drawing)
+  for(const p of particles){
+    const age = (now - p.born)/p.life;
+    fx.fillStyle = p.color.replace('1)',''+(1-age)+')'); // reduce alpha
+    fx.beginPath(); fx.arc(p.x,p.y,p.r*(1-age),0,Math.PI*2); fx.fill();
+  }
+}
+
+/* ---------- main loop ---------- */
+let lastTime = performance.now();
+function frame(now){
+  const dt = now - lastTime;
+  lastTime = now;
+  if(running && !paused){
+    updatePhysics(dt);
+    // update halves life and remove old halves
+    for(let i=fruits.length-1;i>=0;i--){
+      const f=fruits[i];
+      if(f.isHalf){
+        // half physics: similar but slower
+        f.vy += GRAVITY*0.9;
+        f.x += f.vx; f.y += f.vy; f.rot += 0.02 * f.vx;
+        if(now - f.born > f.life) fruits.splice(i,1);
+      }
+    }
+    // particles operate on fx canvas as overlay
+    fx.clearRect(0,0,areaW,areaH);
+    updateParticles(now);
+  }
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+
+/* ---------- UI functions ---------- */
+function updateHUD(){
+  scoreEl.textContent = score;
+  livesEl.textContent = lives;
+  coinsEl.textContent = coins;
+}
+
+function startGame(){
+  if(running) return;
+  running = true; paused=false;
+  startBtn.disabled=true; bigStart.style.display='none';
+  spawnTimer = setInterval(()=>{ spawnFruit(); }, SPAWN_MS);
+  log('Game started');
+}
+
+function pauseGame(){ paused = !paused; pauseBtn.textContent = paused ? 'Resume' : 'Pause'; log('Pause toggled', paused); }
+
+function restartGame(){
+  // simple restart
+  running = false; paused = false;
+  clearInterval(spawnTimer); spawnTimer = null;
+  fruits = []; particles = []; pointerTrail = []; score=0; lives=3; coins=0; updateHUD();
+  startBtn.disabled=false; bigStart.style.display='block';
+  log('Restarted');
+}
+
+/* ---------- draw function wrapper ---------- */
+function draw(){
+  // clear game canvas
+  ctx.clearRect(0,0,areaW,areaH);
+  // draw background subtle gradient (already set in CSS behind canvas)
+  // draw fruits (including halves)
+  for(const f of fruits){
+    ctx.save();
+    ctx.translate(f.x, f.y);
+    ctx.rotate(f.rot);
+    if(f.img) ctx.drawImage(f.img, -f.w/2, -f.h/2, f.w, f.h);
+    else { ctx.fillStyle='#f97316'; ctx.beginPath(); ctx.ellipse(0,0,f.w/2,f.h/2,0,0,Math.PI*2); ctx.fill(); }
+    ctx.restore();
+  }
+
+  // blade trail (on fx canvas, but we clear then draw)
+  // pointerTrail is drawn in fx context earlier (frame loop), but draw here too to ensure latest trail
+  fx.lineJoin='round'; fx.lineCap='round';
+  if(pointerTrail.length>1){
+    for(let i=0;i<pointerTrail.length-1;i++){
+      const p1=pointerTrail[i], p2=pointerTrail[i+1];
+      const alpha = 1 - i/pointerTrail.length;
+      fx.strokeStyle = `rgba(34,197,94,${alpha*0.9})`;
+      fx.lineWidth = 12 * alpha;
+      fx.beginPath(); fx.moveTo(p1.x,p1.y); fx.lineTo(p2.x,p2.y); fx.stroke();
+    }
+  }
+}
+
+/* ---------- pointer hit detection improvement: test bounding boxes along recent trail segments ---------- */
+function checkSlice(e){
+  if(pointerTrail.length<2) return;
+  // last segment
+  const p2 = pointerTrail[pointerTrail.length-1];
+  const p1 = pointerTrail[Math.max(0,pointerTrail.length-2)];
+  // quick test each fruit bounding box intersects the segment (distance to rect)
+  for(let i=fruits.length-1;i>=0;i--){
+    const f = fruits[i];
+    if(f.sliced) continue;
+    // bounding rect
+    const left = f.x - f.w/2, right = f.x + f.w/2, top = f.y - f.h/2, bottom = f.y + f.h/2;
+    if(segmentIntersectsRect(p1,p2,{left,top,right,bottom})){
+      doSlice(f);
+    }
+  }
+}
+function segmentIntersectsRect(a,b,rect){
+  // quick bbox check
+  const minX = Math.min(a.x,b.x), maxX = Math.max(a.x,b.x);
+  const minY = Math.min(a.y,b.y), maxY = Math.max(a.y,b.y);
+  if(maxX < rect.left || minX > rect.right || maxY < rect.top || minY > rect.bottom) return false;
+  // approximate by sampling a few points along segment
+  const steps = 6;
+  for(let i=0;i<=steps;i++){
+    const t = i/steps;
+    const x = a.x + (b.x-a.x)*t;
+    const y = a.y + (b.y-a.y)*t;
+    if(x>=rect.left && x<=rect.right && y>=rect.top && y<=rect.bottom) return true;
+  }
+  return false;
+}
+
+/* ---------- events ---------- */
+startBtn.addEventListener('click', startGame);
+bigStart.addEventListener('click', startGame);
+pauseBtn.addEventListener('click', pauseGame);
+restartBtn.addEventListener('click', restartGame);
+toggleConsole.addEventListener('click', ()=>consoleBox.style.display = consoleBox.style.display==='block' ? 'none' : 'block');
+
+/* ---------- pointer capture for mobile --- we already use global pointer events */
+document.addEventListener('pointerdown', e => {
+  const rect = gameCanvas.getBoundingClientRect();
+  pointerTrail = [{x: e.clientX - rect.left, y: e.clientY - rect.top, t: Date.now()}];
+});
+document.addEventListener('pointermove', e => {
+  const rect = gameCanvas.getBoundingClientRect();
+  if(pointerTrail.length && running && !paused){
+    pointerTrail.push({x: e.clientX - rect.left, y: e.clientY - rect.top, t: Date.now()});
+    if(pointerTrail.length>30) pointerTrail.shift();
+    checkSlice(e);
+  }
+});
+document.addEventListener('pointerup', ()=> pointerTrail = []);
+
+/* ---------- startup: preload images, register SW and start UI ---------- */
+async function boot(){
+  resizeCanvas();
+  // try register service worker via blob (so single-file easily works). If sandbox blocks, registration is optional.
+  if('serviceWorker' in navigator){
+    try{
+      const swCode = `const CACHE='${CACHE_NAME}';self.addEventListener('install',e=>{e.waitUntil((async()=>{const c=await caches.open(CACHE);await c.addAll(${JSON.stringify(['./','./index.html'])});})());self.skipWaiting();});self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(res=>{caches.open(CACHE).then(c=>c.put(e.request,res.clone()));return res;})).catch(()=>caches.match('./')));});`;
+      const blob = new Blob([swCode],{type:'text/javascript'});
+      const url = URL.createObjectURL(blob);
+      await navigator.serviceWorker.register(url).then(()=>log('sw registered'));
+    }catch(err){
+      log('sw reg fail', err && err.message ? err.message : err);
+    }
+  }
+  // preload images (concurrency-limited)
+  try{
+    await preloadImages(ALL);
+    startBtn.disabled=false; log('preload done');
+  }catch(e){
+    log('preload error', e);
+  }
+  // auto-start fallback: enable bigStart and start button
+  bigStart.style.display='block';
+}
+boot();
+
+/* ---------- animation driver for physics + draw (keeps stable fps) ---------- */
+let last=performance.now();
+function driver(now){
+  const dt = now - last; last = now;
+  if(running && !paused){
+    // physics tick
+    updatePhysics(dt);
+  }
+  // draw/update fx overlays
+  draw();
+  requestAnimationFrame(driver);
+}
+requestAnimationFrame(driver);
+
+/* ---------- helper createImageBitmap fallback for older browsers ---------- */
+// (createImageBitmap is widely supported; if not, we can use Image element)
+if(!window.createImageBitmap) {
+  window.createImageBitmap = async function(blob){
+    return new Promise((res,rej)=>{
+      const img = new Image(); img.onload = ()=>res(img); img.onerror = rej; img.src = URL.createObjectURL(blob);
+    });
+  }
+}
+
+/* ---------- utility: polite random ---------- */
+function rand(a,b){return Math.random()*(b-a)+a}
 </script>
 </body>
-</html>
+  </html>
