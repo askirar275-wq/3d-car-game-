@@ -3,178 +3,448 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>🍉 Fruit Cut — Final Clean</title>
+<title>Fruit Cut — Final All-in-One</title>
 <style>
-:root{--ui:#f4f7fb;--btn:#111}
+:root{
+  --ui:#f4f7fb; --panel:#efe9e1; --btn:#111; --accent:#22c55e;
+  --hud-shadow: 0 8px 22px rgba(0,0,0,0.06);
+}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0;background:var(--ui);font-family:Inter,system-ui,Roboto,Arial,sans-serif;color:#111}
-.container{max-width:820px;margin:0 auto;padding:12px}
-h1{text-align:center;margin:10px 0}
-.hud{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
-.stat{background:#fff;padding:8px 12px;border-radius:12px;box-shadow:0 8px 22px rgba(0,0,0,0.06);font-weight:700}
-#gameWrapper{position:relative;border-radius:14px;overflow:hidden;background:linear-gradient(180deg,#bfe9ff,#f6f7fb);height:60vh;min-height:420px}
+.container{max-width:920px;margin:0 auto;padding:12px}
+h1{text-align:center;margin:8px 0}
+.hud{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
+.stat{background:#fff;padding:8px 12px;border-radius:12px;box-shadow:var(--hud-shadow);font-weight:700}
+#gameWrapper{position:relative;border-radius:14px;overflow:hidden;height:66vh;min-height:480px;background:linear-gradient(180deg,#bfe9ff,#f6f7fb)}
+#sky{position:absolute;inset:0;z-index:1}
 #gameArea{position:absolute;inset:0;z-index:2;touch-action:none}
 canvas{position:absolute;inset:0;z-index:6;pointer-events:none}
-.fruit,.half{position:absolute;transform:translate(-50%,-50%);user-select:none;pointer-events:none;z-index:5}
-#bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;background:var(--btn);color:#fff;padding:14px 18px;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:0 12px 34px rgba(0,0,0,0.25)}
-.controls{display:flex;gap:12px;justify-content:center;padding:16px;margin-top:8px}
+.fruit, .half{position:absolute;transform:translate(-50%,-50%);user-select:none;pointer-events:none;z-index:5}
+#bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:12;background:var(--btn);color:#fff;padding:14px 20px;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:0 12px 34px rgba(0,0,0,0.25)}
+.controls{display:flex;gap:12px;justify-content:center;padding:18px;margin-top:6px}
 .btn{background:#fff;border:0;padding:10px 18px;border-radius:12px;cursor:pointer;box-shadow:0 10px 26px rgba(2,6,23,0.06);font-weight:700}
-#gameOver{position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center}
-.card{background:#fff;padding:16px;border-radius:12px;box-shadow:0 8px 26px rgba(0,0,0,0.1)}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:rgba(0,0,0,0.8);color:#fff;padding:8px 14px;border-radius:999px;z-index:999;display:none}
+.btn.ghost{background:transparent;border:1px solid rgba(0,0,0,0.06)}
+#gameOver{position:absolute;inset:0;z-index:1400;display:none;align-items:center;justify-content:center}
+.card{background:#fff;padding:16px;border-radius:12px;box-shadow:0 12px 36px rgba(2,6,23,0.12)}
+.modal{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:1500;display:none}
+.shopGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.shopItem{background:#fff;padding:8px;border-radius:8px;display:flex;align-items:center;gap:8px;justify-content:space-between}
+.thumb{width:64px;height:44px;object-fit:cover;border-radius:8px}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:rgba(0,0,0,0.8);color:#fff;padding:8px 14px;border-radius:999px;z-index:1600;display:none}
+.loadingOverlay{position:absolute;inset:0;background:rgba(255,255,255,0.9);z-index:2000;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px}
+.progress{width:70%;max-width:420px;background:#fff;padding:18px;border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,0.08);text-align:center}
+.progressBar{height:10px;background:#eee;border-radius:999px;overflow:hidden;margin:10px 0}
+.progressFill{height:100%;width:0;background:linear-gradient(90deg,#22c55e,#06b6d4)}
+.loadingEmoji{font-size:42px}
+.hidden{display:none}
+.small{font-size:13px;color:#666}
+@media (max-width:720px){ #gameWrapper{height:62vh;min-height:420px} .thumb{width:56px;height:40px} }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🍉 Fruit Cut — Final</h1>
+  <h1>🍉 Fruit Cut — Final (Shop, Blades, Backgrounds)</h1>
+
   <div class="hud">
-    <div class="stat">Score: <span id="score">0</span></div>
-    <div class="stat">Lives: <span id="lives">3</span></div>
-    <div class="stat">Coins: <span id="coins">0</span></div>
-    <div class="stat">Level: <span id="level">1</span></div>
+    <div class="stat">Score: <strong id="score">0</strong></div>
+    <div class="stat">Lives: <strong id="lives">3</strong></div>
+    <div class="stat">Coins: <strong id="coins">0</strong></div>
+    <div style="flex:1"></div>
+    <div class="stat">Level: <strong id="level">1</strong></div>
   </div>
 
   <div id="gameWrapper">
-    <div id="gameArea"></div>
+    <div id="sky"></div>
+    <div id="gameArea" aria-label="game area"></div>
     <canvas id="bladeCanvas"></canvas>
     <canvas id="particles"></canvas>
+
+    <div class="loadingOverlay" id="loader">
+      <div class="progress">
+        <div class="loadingEmoji" id="loadEmoji">🍉</div>
+        <div id="loadText">Loading images...</div>
+        <div class="progressBar"><div class="progressFill" id="progressFill"></div></div>
+        <div class="small" id="progressCount">0 / 0</div>
+      </div>
+    </div>
+
     <div id="bigStart">START</div>
 
     <div id="gameOver">
       <div class="card" style="text-align:center">
         <h2>Game Over</h2>
-        <p>Score: <span id="goScore">0</span></p>
-        <p>Best: <span id="goBest">0</span></p>
-        <button id="goRestart" class="btn">Play Again</button>
+        <p>Score: <strong id="goScore">0</strong></p>
+        <p>Best: <strong id="goBest">0</strong></p>
+        <div style="margin-top:12px">
+          <button id="goRestart" class="btn">Play Again</button>
+        </div>
       </div>
     </div>
+
+    <!-- Shop modal -->
+    <div id="shopModal" class="modal">
+      <div class="card" style="min-width:320px;max-width:92vw">
+        <h3 style="margin:0 0 8px">Shop — Buy Backgrounds / Blades</h3>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+          <div class="small">Coins: <strong id="shopCoins">0</strong></div>
+          <div style="flex:1"></div>
+          <button id="closeShop" class="btn">Close</button>
+        </div>
+
+        <div style="margin-top:6px"><strong>Backgrounds</strong></div>
+        <div class="shopGrid" id="bgGrid" style="margin:8px 0"></div>
+
+        <div style="margin-top:6px"><strong>Blade skins</strong></div>
+        <div class="shopGrid" id="bladeGrid" style="margin:8px 0"></div>
+      </div>
+    </div>
+
   </div>
 
-  <div class="controls">
+  <div style="display:flex;gap:12px;justify-content:center;margin-top:12px">
     <button id="startBtn" class="btn">Start</button>
     <button id="pauseBtn" class="btn">Pause</button>
     <button id="restartBtn" class="btn">Restart</button>
+    <button id="shopBtn" class="btn">Shop</button>
   </div>
 </div>
 
 <div id="toast" class="toast"></div>
 
 <script>
+/* FINAL ALL-IN-ONE: Game + Preload + Shop + Save
+   Put fruit images in images/ folder. Use filenames in FRUITS+ BOMB arrays below.
+*/
+
 (() => {
+  // === CONFIG ===
   const IMG_PATH = 'images/';
-  const FRUITS = ['apple.png','banana.png','orange.png','mango.png','pear.png','plum.png','watermelon.png','pomegranate.png'];
+  const FRUITS = ['apple.png','banana.png','cantaloupe.png','guava.png','mango.png','orange.png','papaya.png','pear.png','pineapple.png','plum.png','pomegranate.png','strawberry.png','watermelon.png'];
   const BOMB = 'bomb.png';
-  const ALL = FRUITS.concat([BOMB]);
+  const ALL_IMGS = [...FRUITS, BOMB];
+
+  // Shop data
+  const BACKGROUNDS = [
+    { id:'bg_sky', label:'Sky', css:'linear-gradient(180deg,#bfe9ff,#f6f7fb)', cost:0 },
+    { id:'bg_sunset', label:'Sunset', css:'linear-gradient(180deg,#ffd1a9,#f6f2fb)', cost:40 },
+    { id:'bg_forest', label:'Forest', css:'linear-gradient(180deg,#d4f7e2,#e9f6ff)', cost:60 }
+  ];
+  const BLADES = [
+    { id:'blade_green', label:'Green', color:'#22c55e', width:14, cost:0 },
+    { id:'blade_blue', label:'Blue', color:'#06b6d4', width:14, cost:30 },
+    { id:'blade_gold', label:'Gold', color:'#f59e0b', width:18, cost:60 }
+  ];
+
+  // === DOM ===
   const area = document.getElementById('gameArea');
   const bladeCanvas = document.getElementById('bladeCanvas');
   const particlesCanvas = document.getElementById('particles');
   const bigStart = document.getElementById('bigStart');
+  const loader = document.getElementById('loader');
+  const progressFill = document.getElementById('progressFill');
+  const progressCount = document.getElementById('progressCount');
+  const loadEmoji = document.getElementById('loadEmoji');
+  const loadText = document.getElementById('loadText');
+
   const startBtn = document.getElementById('startBtn');
   const pauseBtn = document.getElementById('pauseBtn');
   const restartBtn = document.getElementById('restartBtn');
+  const shopBtn = document.getElementById('shopBtn');
+
+  const shopModal = document.getElementById('shopModal');
+  const bgGrid = document.getElementById('bgGrid');
+  const bladeGrid = document.getElementById('bladeGrid');
+  const closeShop = document.getElementById('closeShop');
+  const shopCoins = document.getElementById('shopCoins');
+
   const gameOver = document.getElementById('gameOver');
-  const goRestart = document.getElementById('goRestart');
   const goScore = document.getElementById('goScore');
   const goBest = document.getElementById('goBest');
-  const toast = document.getElementById('toast');
+  const goRestart = document.getElementById('goRestart');
+
   const scoreEl = document.getElementById('score');
   const livesEl = document.getElementById('lives');
   const coinsEl = document.getElementById('coins');
   const levelEl = document.getElementById('level');
+
+  const toast = document.getElementById('toast');
+
   const bctx = bladeCanvas.getContext('2d');
   const pctx = particlesCanvas.getContext('2d');
 
-  let running=false,paused=false;
-  let score=0,lives=3,coins=0,level=1;
-  let fruits=[],particles=[],bladePoints=[];
-  let spawnTimer=null,imageCache={};
+  // === STATE ===
+  let running=false, paused=false;
+  let score=0, lives=3, coins=0, level=1;
+  let spawnInterval = 900, spawnTimer = null;
+  let fruits = [], particles = [], bladePoints = [];
+  let imageCache = {};
+  let shopState = { coins:0, purchasedBackgrounds:[], purchasedBlades:[], selectedBg:'bg_sky', selectedBlade:'blade_green' };
 
-  const rand=(a,b)=>Math.random()*(b-a)+a;
-  function showToast(msg){toast.textContent=msg;toast.style.display='block';setTimeout(()=>toast.style.display='none',1000);}
-  function resize(){const r=area.getBoundingClientRect();bladeCanvas.width=r.width;bladeCanvas.height=r.height;particlesCanvas.width=r.width;particlesCanvas.height=r.height;}
-  window.addEventListener('resize',resize);
+  // load shop state from localStorage
+  try {
+    const saved = JSON.parse(localStorage.getItem('fc_player')||'null');
+    if(saved) shopState = Object.assign(shopState, saved);
+  } catch(e){ /* ignore */ }
 
-  function preloadAll(){return Promise.all(ALL.map(n=>new Promise(res=>{const i=new Image();i.onload=()=>{imageCache[n]=i;res();};i.onerror=()=>res();i.src=IMG_PATH+n;})))}
+  // === HELPERS ===
+  const rand = (a,b) => Math.random()*(b-a)+a;
+  function showToast(msg, t=1200){ toast.textContent = msg; toast.style.display = 'block'; setTimeout(()=> toast.style.display='none', t); }
 
+  function saveShop(){ localStorage.setItem('fc_player', JSON.stringify(shopState)); updateShopUI(); }
+
+  function updateHUD(){ scoreEl.textContent = score; livesEl.textContent = lives; coinsEl.textContent = coins; levelEl.textContent = level; shopCoins.textContent = shopState.coins; }
+
+  // resize canvases
+  function resize(){ const r = area.getBoundingClientRect(); bladeCanvas.width = Math.max(1, Math.floor(r.width)); bladeCanvas.height = Math.max(1, Math.floor(r.height)); particlesCanvas.width = bladeCanvas.width; particlesCanvas.height = bladeCanvas.height; }
+  window.addEventListener('resize', resize);
+
+  // === PRELOAD IMAGES ===
+  function preloadImages(timeout = 2200){
+    return new Promise(resolve => {
+      let loaded = 0, total = ALL_IMGS.length, done=false;
+      progressCount.textContent = `0 / ${total}`;
+      ALL_IMGS.forEach(name => {
+        const img = new Image();
+        img.onload = ()=>{ imageCache[name] = img; loaded++; progressCount.textContent = `${loaded} / ${total}`; progressFill.style.width = `${(loaded/total)*100}%`; if(loaded===total && !done){ done=true; resolve(true);} };
+        img.onerror = ()=>{ loaded++; progressCount.textContent = `${loaded} / ${total}`; progressFill.style.width = `${(loaded/total)*100}%`; if(loaded===total && !done){ done=true; resolve(false);} };
+        img.src = IMG_PATH + name;
+      });
+      // fallback timeout
+      setTimeout(()=> { if(!done){ done=true; resolve(false); } }, timeout);
+    });
+  }
+
+  // show emoji while loading: rotate emoji every 600ms
+  let emojiTimer = null;
+  const EMOJIS = ['🍉','🍎','🍌','🍊','🍍','🍓','🥭'];
+  function startEmoji() { let i=0; loadEmoji.textContent = EMOJIS[0]; emojiTimer = setInterval(()=>{ i=(i+1)%EMOJIS.length; loadEmoji.textContent = EMOJIS[i]; }, 600); }
+  function stopEmoji(){ if(emojiTimer) clearInterval(emojiTimer); emojiTimer = null; }
+
+  // === SPAWNING & PHYSICS ===
   function spawn(){
-    if(!running||paused)return;
-    const isBomb=Math.random()<0.08;
-    const name=isBomb?BOMB:FRUITS[Math.floor(Math.random()*FRUITS.length)];
-    const el=document.createElement('img');
-    el.src=imageCache[name]?imageCache[name].src:IMG_PATH+name;
-    el.className='fruit';
-    el.style.width='70px';
-    el.style.left=rand(60,area.clientWidth-60)+'px';
-    el.style.top=area.clientHeight+40+'px';
+    if(!running || paused) return;
+    const isBomb = Math.random() < 0.08;
+    const name = isBomb ? BOMB : FRUITS[Math.floor(Math.random()*FRUITS.length)];
+    const src = imageCache[name] ? imageCache[name].src : (IMG_PATH + name);
+    const el = document.createElement('img');
+    el.src = src;
+    el.className = 'fruit';
+    // scale: responsive but slightly larger
+    const size = Math.max(64, Math.min(140, Math.floor(area.clientWidth * 0.16)));
+    el.style.width = size + 'px';
+    // spawn from bottom at random x
+    const x = rand(60, area.clientWidth - 60);
+    const startY = area.clientHeight + 60;
+    el.style.left = x + 'px';
+    el.style.top = startY + 'px';
+    el.style.transform = `translate(-50%,-50%) rotate(${rand(-30,30)}deg)`;
     area.appendChild(el);
-    fruits.push({name,isBomb,el,x:parseFloat(el.style.left),y:parseFloat(el.style.top),vx:rand(-2,2),vy:-rand(10,14),rot:0,sliced:false});
+    const obj = { name, el, x, y: startY, vx: rand(-2.2,2.2), vy: -rand(12,18), rot: rand(-25,25), sliced:false, isBomb };
+    fruits.push(obj);
   }
 
   function update(){
     for(let i=fruits.length-1;i>=0;i--){
-      const f=fruits[i];
-      f.vy+=0.36;f.x+=f.vx;f.y+=f.vy;f.rot+=2;
-      f.el.style.left=f.x+'px';f.el.style.top=f.y+'px';f.el.style.transform=`translate(-50%,-50%) rotate(${f.rot}deg)`;
-      if(f.y>area.clientHeight+100){f.el.remove();fruits.splice(i,1);}
-    }
-  }
-
-  function draw(){
-    bctx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height);
-    if(bladePoints.length>1){
-      bctx.strokeStyle='#22c55e';bctx.lineJoin='round';bctx.lineCap='round';
-      for(let i=0;i<bladePoints.length-1;i++){
-        const a=bladePoints[i],b=bladePoints[i+1];
-        const alpha=Math.max(0,1-(Date.now()-a.t)/350);
-        bctx.globalAlpha=alpha;bctx.lineWidth=14*alpha;
-        bctx.beginPath();bctx.moveTo(a.x,a.y);bctx.lineTo(b.x,b.y);bctx.stroke();
-      }bctx.globalAlpha=1;
-    }
-  }
-
-  function onPointerMove(e){
-    if(!running||paused)return;
-    const r=area.getBoundingClientRect();
-    const x=e.clientX-r.left,y=e.clientY-r.top;
-    bladePoints.push({x,y,t:Date.now()});if(bladePoints.length>26)bladePoints.shift();
-    for(let i=fruits.length-1;i>=0;i--){
-      const f=fruits[i];
-      if(f.sliced)continue;
-      const rect=f.el.getBoundingClientRect();
-      if(x+ r.left>=rect.left && x+r.left<=rect.right && y+r.top>=rect.top && y+r.top<=rect.bottom){
-        f.sliced=true;
-        if(f.isBomb){
-          lives--;showToast('💣 Oops!');
-          if(lives<=0)return endGame();
-        }else{
-          score+=10;coins++;
-        }
-        updateHUD();f.el.remove();fruits.splice(i,1);
+      const f = fruits[i];
+      f.vy += 0.32; // gravity tuned
+      f.x += f.vx; f.y += f.vy; f.rot += f.vx*1.2;
+      if(f.el){
+        f.el.style.left = f.x + 'px';
+        f.el.style.top = f.y + 'px';
+        f.el.style.transform = `translate(-50%,-50%) rotate(${f.rot}deg)`;
+      }
+      if(f.y > area.clientHeight + 90){
+        if(f.el) f.el.remove();
+        fruits.splice(i,1);
       }
     }
   }
 
-  function physicsTick(){if(running&&!paused){update();draw();}requestAnimationFrame(physicsTick);}
-  function startSpawning(){clearInterval(spawnTimer);spawnTimer=setInterval(spawn,900);}
-  function stopSpawning(){clearInterval(spawnTimer);spawnTimer=null;}
-  function startGame(){gameOver.style.display='none';if(running)return;running=true;paused=false;score=0;lives=3;coins=0;updateHUD();bigStart.style.display='none';startSpawning();}
-  function pauseGame(){paused=!paused;pauseBtn.textContent=paused?'Resume':'Pause';}
-  function restartGame(){stopSpawning();fruits.forEach(f=>f.el.remove());fruits=[];running=false;paused=false;startGame();}
-  function endGame(){running=false;stopSpawning();goScore.textContent=score;const best=Math.max(localStorage.getItem('best')||0,score);localStorage.setItem('best',best);goBest.textContent=best;gameOver.style.display='flex';}
-  function updateHUD(){scoreEl.textContent=score;livesEl.textContent=lives;coinsEl.textContent=coins;levelEl.textContent=level;}
+  // halves when cut
+  function makeHalves(f){
+    const w = parseInt(f.el.style.width) || 80;
+    const left = document.createElement('img'), right = document.createElement('img');
+    left.className = right.className = 'half';
+    left.src = right.src = f.el.src;
+    left.style.width = right.style.width = w + 'px';
+    left.style.left = f.x + 'px'; left.style.top = f.y + 'px';
+    right.style.left = f.x + 'px'; right.style.top = f.y + 'px';
+    area.appendChild(left); area.appendChild(right);
+    left.style.clipPath = 'polygon(0 0,50% 0,50% 100%,0 100%)';
+    right.style.clipPath = 'polygon(50% 0,100% 0,100% 100%,50% 100%)';
+    // animate separation
+    const start = Date.now(), dur = 700;
+    (function anim(){
+      const t = (Date.now()-start)/dur;
+      if(t >= 1){ left.remove(); right.remove(); return; }
+      left.style.left = (f.x - 20*t*6) + 'px';
+      left.style.top = (f.y - 30*t + t*8) + 'px';
+      left.style.transform = `translate(-50%,-50%) rotate(${f.rot - 35*t}deg)`;
+      right.style.left = (f.x + 20*t*6) + 'px';
+      right.style.top = (f.y - 30*t + t*8) + 'px';
+      right.style.transform = `translate(-50%,-50%) rotate(${f.rot + 35*t}deg)`;
+      requestAnimationFrame(anim);
+    })();
+  }
 
-  startBtn.onclick=startGame;
-  pauseBtn.onclick=pauseGame;
-  restartBtn.onclick=restartGame;
-  goRestart.onclick=restartGame;
-  bigStart.onclick=startGame;
-  window.addEventListener('pointermove',onPointerMove);
-  window.addEventListener('pointerdown',onPointerMove);
-  window.addEventListener('pointerup',()=>bladePoints=[]);
+  // particles
+  function spawnParticles(x,y,color){
+    for(let i=0;i<12;i++){
+      particles.push({ x, y, vx:rand(-3,3), vy:rand(-6,-1), color, created:Date.now(), life:rand(500,900) });
+    }
+  }
 
-  function init(){resize();physicsTick();preloadAll().then(()=>setTimeout(()=>{if(!running)startGame(true);},300));}
-  window.addEventListener('load',init);
-})();
-</script>
-</body>
-</html>
+  function draw(){
+    // blade
+    bctx.clearRect(0,0,bladeCanvas.width, bladeCanvas.height);
+    if(bladePoints.length > 1){
+      const blade = BLADES_MAP[shopState.selectedBlade] || BLADES_MAP['blade_green'];
+      bctx.lineJoin = 'round'; bctx.lineCap = 'round';
+      for(let i=0;i<bladePoints.length-1;i++){
+        const p1 = bladePoints[i], p2 = bladePoints[i+1];
+        const age = Date.now() - p1.t;
+        const alpha = Math.max(0, 1 - age/350);
+        bctx.globalAlpha = alpha;
+        bctx.strokeStyle = blade.color;
+        bctx.lineWidth = blade.width * alpha;
+        bctx.beginPath(); bctx.moveTo(p1.x,p1.y); bctx.lineTo(p2.x,p2.y); bctx.stroke();
+      }
+      bctx.globalAlpha = 1;
+    }
+
+    // particles
+    pctx.clearRect(0,0,particlesCanvas.width, particlesCanvas.height);
+    const now = Date.now();
+    for(let i=particles.length-1;i>=0;i--){
+      const p = particles[i];
+      const age = now - p.created;
+      if(age > p.life){ particles.splice(i,1); continue; }
+      p.vy += 0.12; p.x += p.vx; p.y += p.vy;
+      const a = 1 - age/p.life;
+      pctx.globalAlpha = a;
+      pctx.fillStyle = p.color;
+      pctx.beginPath(); pctx.arc(p.x,p.y,3.2,0,Math.PI*2); pctx.fill();
+    }
+    pctx.globalAlpha = 1;
+  }
+
+  // collision detection by rect
+  function pointIntersectsRect(px,py,rect){
+    return px >= rect.left && px <= rect.right && py >= rect.top && py <= rect.bottom;
+  }
+
+  // pointer handling
+  function onPointerMove(e){
+    if(!running || paused) return;
+    const r = area.getBoundingClientRect();
+    const x = e.clientX - r.left, y = e.clientY - r.top;
+    bladePoints.push({ x, y, t: Date.now() });
+    if(bladePoints.length > 26) bladePoints.shift();
+
+    // check fruits
+    for(let i=fruits.length-1; i>=0; i--){
+      const f = fruits[i];
+      if(f.sliced) continue;
+      const rect = f.el.getBoundingClientRect();
+      // Use global client coords for rect test
+      if(pointIntersectsRect(e.clientX, e.clientY, rect)){
+        f.sliced = true;
+        if(f.isBomb){
+          // bomb: reduce life, particles
+          lives = Math.max(0, lives - 1);
+          spawnParticles(f.x, f.y, '#ff4d4d');
+          if(lives <= 0) endGame();
+          else showToast('💣 Bomb! -1 life');
+        } else {
+          // normal fruit: score, coin, halves & particles
+          score += 10; coins += 1; shopState.coins = Math.max(0, shopState.coins + 1);
+          makeHalves(f);
+          spawnParticles(f.x, f.y, '#ffd54d');
+          showToast('+10');
+        }
+        updateHUD();
+        if(f.el) f.el.remove();
+        fruits.splice(i,1);
+      }
+    }
+  }
+
+  // game loop
+  function physicsTick(){
+    if(running && !paused){
+      update();
+      draw();
+    }
+    requestAnimationFrame(physicsTick);
+  }
+
+  // spawn control
+  function startSpawning(){
+    if(spawnTimer) clearInterval(spawnTimer);
+    spawnTimer = setInterval(()=>spawn(), spawnInterval);
+  }
+  function stopSpawning(){ if(spawnTimer) clearInterval(spawnTimer); spawnTimer = null; }
+
+  // start/pause/restart/end
+  function startGame(auto=false){
+    if(!auto){
+      score = 0; lives = 3; coins = 0; level = 1;
+    }
+    running = true; paused = false;
+    bigStart.style.display = 'none';
+    gameOver.style.display = 'none';
+    startSpawning();
+    updateHUD();
+  }
+  function pauseGame(){ paused = !paused; pauseBtn.textContent = paused ? 'Resume' : 'Pause'; }
+  function restartGame(){
+    stopSpawning();
+    fruits.forEach(f=>f.el && f.el.remove());
+    fruits = []; particles = []; bladePoints = [];
+    running = false; paused = false;
+    bigStart.style.display = 'block';
+    updateHUD();
+  }
+  function endGame(){
+    running = false; stopSpawning();
+    goScore.textContent = score;
+    const best = Math.max(Number(localStorage.getItem('fc_best')||0), score);
+    localStorage.setItem('fc_best', best);
+    goBest.textContent = best;
+    gameOver.style.display = 'flex';
+    bigStart.style.display = 'block';
+  }
+
+  // === SHOP UI ===
+  function makeBgCard(bg){
+    const div = document.createElement('div'); div.className = 'shopItem';
+    const left = document.createElement('div'); left.style.display='flex'; left.style.alignItems='center';
+    const thumb = document.createElement('div'); thumb.className='thumb'; thumb.style.background = bg.css; thumb.style.borderRadius='8px';
+    const label = document.createElement('div'); label.style.marginLeft='8px'; label.innerHTML = `<strong>${bg.label}</strong><div class="small">Cost: ${bg.cost}</div>`;
+    left.appendChild(thumb); left.appendChild(label);
+    const action = document.createElement('div');
+    const btn = document.createElement('button'); btn.className='btn';
+    btn.textContent = shopState.selectedBg === bg.id ? 'Selected' : (shopState.purchasedBackgrounds.includes(bg.id) ? 'Select' : `Buy ${bg.cost}`);
+    if(bg.cost === 0 && !shopState.purchasedBackgrounds.includes(bg.id)) shopState.purchasedBackgrounds.push(bg.id);
+    btn.onclick = ()=>{
+      if(shopState.purchasedBackgrounds.includes(bg.id)){ shopState.selectedBg = bg.id; applyBackground(bg.id); saveShop(); showToast('Selected'); }
+      else {
+        if(shopState.coins >= bg.cost){ shopState.coins -= bg.cost; shopState.purchasedBackgrounds.push(bg.id); shopState.selectedBg = bg.id; saveShop(); showToast('Purchased'); }
+        else showToast('Not enough coins');
+      }
+      updateShopUI();
+      updateHUD();
+    };
+    action.appendChild(btn);
+    div.appendChild(left); div.appendChild(action);
+    return div;
+  }
+
+  function makeBladeCard(b){
+    const div = document.createElement('div'); div.className='shopItem';
+    const left = document.createElement('div'); left.style.display='flex'; left.style.alignItems='center';
+    const thumb = document.createElement('div'); thumb.className='thumb'; thumb.style.background = b.color; thumb.style.borderRadius='8px';
+    const label = document.createElement('div'); label.style.marginLeft='8px'; label.innerHTML = `<strong>${b.label}</strong><div class="small">Cost: ${b.cost}</div>`;
+    left.appendChild(thumb); left.appendChild(label);
+    const action = document.createElement('div');
+    const btn = document.createEleme
