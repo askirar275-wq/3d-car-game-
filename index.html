@@ -3,39 +3,30 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Console Protected</title>
+<title>🍉 Fruit Cut — Final Clean</title>
 <style>
-:root{--ui:#f4f7fb;--panel:#efe9e1;--btn:#111;--muted:#666}
+:root{--ui:#f4f7fb;--btn:#111}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;margin:0;background:var(--ui);font-family:Inter,system-ui,Roboto,Arial,sans-serif;color:#111}
 .container{max-width:820px;margin:0 auto;padding:12px}
-h1{margin:6px 0 8px;text-align:center}
+h1{text-align:center;margin:10px 0}
 .hud{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
 .stat{background:#fff;padding:8px 12px;border-radius:12px;box-shadow:0 8px 22px rgba(0,0,0,0.06);font-weight:700}
-#gameWrapper{position:relative;border-radius:14px;overflow:hidden;background:linear-gradient(180deg,#bfe9ff,#f6f7fb);height:56vh;min-height:380px}
-#gameArea{position:absolute;inset:0;z-index:2;touch-action:none;pointer-events:auto}
-canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer-events:none}
-.fruit, .half{position:absolute;transform:translate(-50%,-50%);user-select:none;pointer-events:none;z-index:5}
+#gameWrapper{position:relative;border-radius:14px;overflow:hidden;background:linear-gradient(180deg,#bfe9ff,#f6f7fb);height:60vh;min-height:420px}
+#gameArea{position:absolute;inset:0;z-index:2;touch-action:none}
+canvas{position:absolute;inset:0;z-index:6;pointer-events:none}
+.fruit,.half{position:absolute;transform:translate(-50%,-50%);user-select:none;pointer-events:none;z-index:5}
 #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;background:var(--btn);color:#fff;padding:14px 18px;border-radius:12px;font-weight:700;cursor:pointer;box-shadow:0 12px 34px rgba(0,0,0,0.25)}
-.controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;padding:12px;margin-top:8px}
-.btn{background:#fff;border:0;padding:10px 14px;border-radius:12px;cursor:pointer;box-shadow:0 8px 20px rgba(2,6,23,0.06);font-weight:700}
-.consoleBox{position:absolute;right:8px;top:8px;background:rgba(0,0,0,0.82);color:#fff;padding:8px;border-radius:8px;z-index:1200;max-height:46%;overflow:auto;font-family:monospace;font-size:12px;display:none;min-width:220px;max-width:60%}
-.consoleHeader{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;gap:8px}
-.consoleHeader b{font-size:13px}
-.consoleBody{max-height:calc(46vh - 36px);overflow:auto}
-.consoleLine{padding:4px 6px;border-radius:4px;opacity:.95;white-space:pre-wrap}
-.consoleLine.info{color:#d1fae5}
-.consoleLine.warn{color:#fff1bf}
-.consoleLine.err{color:#ffd6d6}
-.card{background:#fff;padding:14px;border-radius:10px;box-shadow:0 12px 36px rgba(2,6,23,0.12)}
-#gameOver{position:absolute;inset:0;z-index:1400;display:none;align-items:center;justify-content:center}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:rgba(0,0,0,0.8);color:#fff;padding:8px 14px;border-radius:999px;z-index:1600;display:none}
-@media (min-width:900px){#gameWrapper{height:560px}}
+.controls{display:flex;gap:12px;justify-content:center;padding:16px;margin-top:8px}
+.btn{background:#fff;border:0;padding:10px 18px;border-radius:12px;cursor:pointer;box-shadow:0 10px 26px rgba(2,6,23,0.06);font-weight:700}
+#gameOver{position:absolute;inset:0;z-index:20;display:none;align-items:center;justify-content:center}
+.card{background:#fff;padding:16px;border-radius:12px;box-shadow:0 8px 26px rgba(0,0,0,0.1)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:18px;background:rgba(0,0,0,0.8);color:#fff;padding:8px 14px;border-radius:999px;z-index:999;display:none}
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🍉 Fruit Cut — Console Protected</h1>
+  <h1>🍉 Fruit Cut — Final</h1>
   <div class="hud">
     <div class="stat">Score: <span id="score">0</span></div>
     <div class="stat">Lives: <span id="lives">3</span></div>
@@ -44,10 +35,9 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
   </div>
 
   <div id="gameWrapper">
-    <div id="gameArea" aria-label="game area"></div>
+    <div id="gameArea"></div>
     <canvas id="bladeCanvas"></canvas>
     <canvas id="particles"></canvas>
-
     <div id="bigStart">START</div>
 
     <div id="gameOver">
@@ -55,19 +45,8 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
         <h2>Game Over</h2>
         <p>Score: <span id="goScore">0</span></p>
         <p>Best: <span id="goBest">0</span></p>
-        <div style="margin-top:12px"><button id="goRestart" class="btn">Play Again</button></div>
+        <button id="goRestart" class="btn">Play Again</button>
       </div>
-    </div>
-
-    <div id="consoleBox" class="consoleBox" role="log" aria-live="polite" aria-hidden="true">
-      <div class="consoleHeader">
-        <b>Console</b>
-        <div>
-          <button id="clearConsole" class="btn" style="padding:6px 8px;font-size:12px">Clear</button>
-          <button id="hideConsole" class="btn" style="padding:6px 8px;font-size:12px">Hide</button>
-        </div>
-      </div>
-      <div id="consoleBody" class="consoleBody"></div>
     </div>
   </div>
 
@@ -75,24 +54,17 @@ canvas#bladeCanvas, canvas#particles{position:absolute;inset:0;z-index:6;pointer
     <button id="startBtn" class="btn">Start</button>
     <button id="pauseBtn" class="btn">Pause</button>
     <button id="restartBtn" class="btn">Restart</button>
-    <button id="toggleConsole" class="btn">Toggle Console</button>
   </div>
 </div>
 
 <div id="toast" class="toast"></div>
 
 <script>
-/* Protected-console single-file build */
-/* CHANGE PASSWORD HERE if you want: */
-const CONSOLE_PASS = 'dev';
-
 (() => {
-  const IMG_PATH = 'images/'; // folder path
-  const FRUITS = ['apple.png','banana.png','cantaloupe.png','guava.png','mango.png','orange.png','papaya.png','pear.png','pineapple.png','plum.png','pomegranate.png','strawberry.png','watermelon.png'];
+  const IMG_PATH = 'images/';
+  const FRUITS = ['apple.png','banana.png','orange.png','mango.png','pear.png','plum.png','watermelon.png','pomegranate.png'];
   const BOMB = 'bomb.png';
   const ALL = FRUITS.concat([BOMB]);
-
-  // DOM
   const area = document.getElementById('gameArea');
   const bladeCanvas = document.getElementById('bladeCanvas');
   const particlesCanvas = document.getElementById('particles');
@@ -100,226 +72,109 @@ const CONSOLE_PASS = 'dev';
   const startBtn = document.getElementById('startBtn');
   const pauseBtn = document.getElementById('pauseBtn');
   const restartBtn = document.getElementById('restartBtn');
-  const toggleConsole = document.getElementById('toggleConsole');
-  const consoleBox = document.getElementById('consoleBox');
-  const consoleBody = document.getElementById('consoleBody');
-  const clearConsole = document.getElementById('clearConsole');
-  const hideConsole = document.getElementById('hideConsole');
   const gameOver = document.getElementById('gameOver');
   const goRestart = document.getElementById('goRestart');
   const goScore = document.getElementById('goScore');
   const goBest = document.getElementById('goBest');
   const toast = document.getElementById('toast');
-
   const scoreEl = document.getElementById('score');
   const livesEl = document.getElementById('lives');
   const coinsEl = document.getElementById('coins');
   const levelEl = document.getElementById('level');
-
   const bctx = bladeCanvas.getContext('2d');
   const pctx = particlesCanvas.getContext('2d');
 
-  let running=false, paused=false;
-  let score=0, lives=3, coins=0, level=1;
-  let spawnInterval=900, spawnTimer=null;
-  let fruits=[], particles=[], bladePoints=[];
-  let imageCache={};
+  let running=false,paused=false;
+  let score=0,lives=3,coins=0,level=1;
+  let fruits=[],particles=[],bladePoints=[];
+  let spawnTimer=null,imageCache={};
 
-  // logging: always go to browser console; UI only if visible
-  function log(...args){ const s='[FruitCut] '+args.join(' '); console.log(s); if(consoleBox.style.display!=='none'){ const el=document.createElement('div'); el.className='consoleLine info'; el.textContent=s; consoleBody.prepend(el);} }
-  function warn(...args){ const s='[FruitCut][WARN] '+args.join(' '); console.warn(s); if(consoleBox.style.display!=='none'){ const el=document.createElement('div'); el.className='consoleLine warn'; el.textContent=s; consoleBody.prepend(el);} }
-  function err(...args){ const s='[FruitCut][ERR] '+args.join(' '); console.error(s); if(consoleBox.style.display!=='none'){ const el=document.createElement('div'); el.className='consoleLine err'; el.textContent=s; consoleBody.prepend(el);} }
+  const rand=(a,b)=>Math.random()*(b-a)+a;
+  function showToast(msg){toast.textContent=msg;toast.style.display='block';setTimeout(()=>toast.style.display='none',1000);}
+  function resize(){const r=area.getBoundingClientRect();bladeCanvas.width=r.width;bladeCanvas.height=r.height;particlesCanvas.width=r.width;particlesCanvas.height=r.height;}
+  window.addEventListener('resize',resize);
 
-  function showToast(msg,t=1200){ toast.textContent=msg; toast.style.display='block'; setTimeout(()=>toast.style.display='none',t); }
-
-  function resize(){ const r=area.getBoundingClientRect(); bladeCanvas.width=Math.max(1,Math.floor(r.width)); bladeCanvas.height=Math.max(1,Math.floor(r.height)); particlesCanvas.width=bladeCanvas.width; particlesCanvas.height=bladeCanvas.height; }
-  window.addEventListener('resize', resize);
-
-  // preload images (with timeout)
-  function preloadAll(timeout=2200){
-    return new Promise(resolve=>{
-      let loaded=0, done=false, total=ALL.length;
-      log('Preload start', ALL.join(','));
-      ALL.forEach(name=>{
-        const img=new Image();
-        img.onload=()=>{ imageCache[name]=img; loaded++; log('loaded', name); if(loaded===total && !done){ done=true; resolve(true);} };
-        img.onerror=()=>{ warn('failed', name); loaded++; if(loaded===total && !done){ done=true; resolve(false);} };
-        img.src = IMG_PATH + name;
-      });
-      setTimeout(()=>{ if(!done){ done=true; warn('preload timed out — continuing'); resolve(false); } }, timeout);
-    });
-  }
-
-  function rand(a,b){ return Math.random()*(b-a)+a; }
+  function preloadAll(){return Promise.all(ALL.map(n=>new Promise(res=>{const i=new Image();i.onload=()=>{imageCache[n]=i;res();};i.onerror=()=>res();i.src=IMG_PATH+n;})))}
 
   function spawn(){
-    if(!running || paused) return;
-    const isBomb = Math.random() < 0.08;
-    const name = isBomb ? BOMB : FRUITS[Math.floor(Math.random()*FRUITS.length)];
-    const imgSrc = imageCache[name] ? imageCache[name].src : (IMG_PATH + name);
-    const el=document.createElement('img'); el.src=imgSrc; el.className='fruit';
-    const size=Math.max(64, Math.min(140, Math.floor(area.clientWidth * 0.18)));
-    el.style.width = size + 'px';
-    const x = rand(60, area.clientWidth-60);
-    const startY = area.clientHeight + 40;
-    el.style.left = x + 'px'; el.style.top = startY + 'px';
-    el.style.transform = 'translate(-50%,-50%) rotate(' + rand(-30,30) + 'deg)';
+    if(!running||paused)return;
+    const isBomb=Math.random()<0.08;
+    const name=isBomb?BOMB:FRUITS[Math.floor(Math.random()*FRUITS.length)];
+    const el=document.createElement('img');
+    el.src=imageCache[name]?imageCache[name].src:IMG_PATH+name;
+    el.className='fruit';
+    el.style.width='70px';
+    el.style.left=rand(60,area.clientWidth-60)+'px';
+    el.style.top=area.clientHeight+40+'px';
     area.appendChild(el);
-    const obj={ name, el, x, y:startY, vx:rand(-2,2), vy:-rand(12,16), rot:rand(-30,30), sliced:false, isBomb };
-    fruits.push(obj);
-    log('spawned', name, imageCache[name] ? '(cached)' : '(fallback)');
+    fruits.push({name,isBomb,el,x:parseFloat(el.style.left),y:parseFloat(el.style.top),vx:rand(-2,2),vy:-rand(10,14),rot:0,sliced:false});
   }
 
   function update(){
     for(let i=fruits.length-1;i>=0;i--){
       const f=fruits[i];
-      f.vy += 0.36;
-      f.x += f.vx; f.y += f.vy; f.rot += f.vx*1.5;
-      if(f.el){ f.el.style.left = f.x + 'px'; f.el.style.top = f.y + 'px'; f.el.style.transform = 'translate(-50%,-50%) rotate(' + f.rot + 'deg)'; }
-      if(f.y > area.clientHeight + 90){
-        if(!f.sliced && !f.isBomb){
-          // missed fruit -> no penalty
-        }
-        if(f.el) f.el.remove();
-        fruits.splice(i,1);
-      }
+      f.vy+=0.36;f.x+=f.vx;f.y+=f.vy;f.rot+=2;
+      f.el.style.left=f.x+'px';f.el.style.top=f.y+'px';f.el.style.transform=`translate(-50%,-50%) rotate(${f.rot}deg)`;
+      if(f.y>area.clientHeight+100){f.el.remove();fruits.splice(i,1);}
     }
   }
-
-  function makeHalves(f){
-    const w = parseInt(f.el.style.width) || 80;
-    const left = document.createElement('img'); const right = document.createElement('img');
-    left.className = right.className = 'half';
-    left.src = right.src = f.el.src;
-    left.style.width = right.style.width = w + 'px';
-    left.style.left = f.x + 'px'; left.style.top = f.y + 'px';
-    right.style.left = f.x + 'px'; right.style.top = f.y + 'px';
-    area.appendChild(left); area.appendChild(right);
-    left.style.clipPath = 'polygon(0 0,50% 0,50% 100%,0 100%)';
-    right.style.clipPath = 'polygon(50% 0,100% 0,100% 100%,50% 100%)';
-    const start = Date.now(); const dur = 700;
-    (function anim(){ const t=(Date.now()-start)/dur; if(t>=1){ left.remove(); right.remove(); return; } left.style.left=(f.x - 18*t*6)+'px'; left.style.top=(f.y - 30*t + t*10)+'px'; left.style.transform='translate(-50%,-50%) rotate('+(f.rot - 30*t)+'deg)'; right.style.left=(f.x + 18*t*6)+'px'; right.style.top=(f.y - 30*t + t*10)+'px'; right.style.transform='translate(-50%,-50%) rotate('+(f.rot + 30*t)+'deg)'; requestAnimationFrame(anim); })();
-  }
-
-  function spawnParticles(x,y,color){ for(let i=0;i<12;i++){ particles.push({x,y,vx:rand(-3,3),vy:rand(-6,-1),color,created:Date.now(),life:rand(500,900)}); } }
 
   function draw(){
-    bctx.clearRect(0,0,bladeCanvas.width, bladeCanvas.height);
+    bctx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height);
     if(bladePoints.length>1){
-      bctx.lineJoin='round'; bctx.lineCap='round'; bctx.strokeStyle='#22c55e';
-      for(let i=0;i<bladePoints.length-1;i++){ const a=bladePoints[i], b=bladePoints[i+1]; const alpha=Math.max(0,1-(Date.now()-a.t)/350); bctx.globalAlpha=alpha; bctx.lineWidth=14*alpha; bctx.beginPath(); bctx.moveTo(a.x,a.y); bctx.lineTo(b.x,b.y); bctx.stroke(); }
-      bctx.globalAlpha=1;
+      bctx.strokeStyle='#22c55e';bctx.lineJoin='round';bctx.lineCap='round';
+      for(let i=0;i<bladePoints.length-1;i++){
+        const a=bladePoints[i],b=bladePoints[i+1];
+        const alpha=Math.max(0,1-(Date.now()-a.t)/350);
+        bctx.globalAlpha=alpha;bctx.lineWidth=14*alpha;
+        bctx.beginPath();bctx.moveTo(a.x,a.y);bctx.lineTo(b.x,b.y);bctx.stroke();
+      }bctx.globalAlpha=1;
     }
-    pctx.clearRect(0,0,particlesCanvas.width, particlesCanvas.height);
-    const now=Date.now();
-    for(let i=particles.length-1;i>=0;i--){
-      const p=particles[i]; const age=now-p.created; if(age>p.life){ particles.splice(i,1); continue; } p.vy+=0.12; p.x+=p.vx; p.y+=p.vy; const a=1-age/p.life; pctx.globalAlpha=a; pctx.fillStyle=p.color; pctx.beginPath(); pctx.arc(p.x,p.y,3.2,0,Math.PI*2); pctx.fill();
-    }
-    pctx.globalAlpha=1;
   }
 
-  function rectIntersectsPoint(rect, px, py){ return px>=rect.left && px<=rect.right && py>=rect.top && py<=rect.bottom; }
-
   function onPointerMove(e){
-    if(!running || paused) return;
-    const r = area.getBoundingClientRect();
-    const x = e.clientX - r.left, y = e.clientY - r.top;
-    bladePoints.push({x,y,t:Date.now()});
-    if(bladePoints.length > 26) bladePoints.shift();
-
+    if(!running||paused)return;
+    const r=area.getBoundingClientRect();
+    const x=e.clientX-r.left,y=e.clientY-r.top;
+    bladePoints.push({x,y,t:Date.now()});if(bladePoints.length>26)bladePoints.shift();
     for(let i=fruits.length-1;i>=0;i--){
       const f=fruits[i];
-      if(f.sliced) continue;
-      const rect = f.el.getBoundingClientRect();
-      if(rectIntersectsPoint(rect, e.clientX, e.clientY)){
-        f.sliced = true;
+      if(f.sliced)continue;
+      const rect=f.el.getBoundingClientRect();
+      if(x+ r.left>=rect.left && x+r.left<=rect.right && y+r.top>=rect.top && y+r.top<=rect.bottom){
+        f.sliced=true;
         if(f.isBomb){
-          lives = Math.max(0, lives-1);
-          spawnParticles(f.x, f.y, '#ff4d4d');
-          warn('Bomb sliced. lives=' + lives);
-          if(lives <= 0) endGame();
-        } else {
-          score += 10; coins += 1;
-          spawnParticles(f.x, f.y, '#ffd54d');
-          makeHalves(f);
-          log('Fruit sliced: ' + f.name);
+          lives--;showToast('💣 Oops!');
+          if(lives<=0)return endGame();
+        }else{
+          score+=10;coins++;
         }
-        updateHUD();
-        if(f.el) f.el.remove();
-        fruits.splice(i,1);
+        updateHUD();f.el.remove();fruits.splice(i,1);
       }
     }
   }
 
-  function physicsTick(){ if(running && !paused){ update(); draw(); } requestAnimationFrame(physicsTick); }
+  function physicsTick(){if(running&&!paused){update();draw();}requestAnimationFrame(physicsTick);}
+  function startSpawning(){clearInterval(spawnTimer);spawnTimer=setInterval(spawn,900);}
+  function stopSpawning(){clearInterval(spawnTimer);spawnTimer=null;}
+  function startGame(){gameOver.style.display='none';if(running)return;running=true;paused=false;score=0;lives=3;coins=0;updateHUD();bigStart.style.display='none';startSpawning();}
+  function pauseGame(){paused=!paused;pauseBtn.textContent=paused?'Resume':'Pause';}
+  function restartGame(){stopSpawning();fruits.forEach(f=>f.el.remove());fruits=[];running=false;paused=false;startGame();}
+  function endGame(){running=false;stopSpawning();goScore.textContent=score;const best=Math.max(localStorage.getItem('best')||0,score);localStorage.setItem('best',best);goBest.textContent=best;gameOver.style.display='flex';}
+  function updateHUD(){scoreEl.textContent=score;livesEl.textContent=lives;coinsEl.textContent=coins;levelEl.textContent=level;}
 
-  function startSpawning(){ if(spawnTimer) clearInterval(spawnTimer); spawnTimer = setInterval(()=>spawn(), spawnInterval); }
-  function stopSpawning(){ if(spawnTimer) clearInterval(spawnTimer); spawnTimer = null; }
+  startBtn.onclick=startGame;
+  pauseBtn.onclick=pauseGame;
+  restartBtn.onclick=restartGame;
+  goRestart.onclick=restartGame;
+  bigStart.onclick=startGame;
+  window.addEventListener('pointermove',onPointerMove);
+  window.addEventListener('pointerdown',onPointerMove);
+  window.addEventListener('pointerup',()=>bladePoints=[]);
 
-  function startGame(auto=false){
-    gameOver.style.display='none';
-    if(running) return;
-    running=true; paused=false;
-    if(!auto){ score=0; lives=3; coins=0; level=1; updateHUD(); }
-    bigStart.style.display='none'; startSpawning(); log('Game started');
-  }
-  function pauseGame(){ paused = !paused; pauseBtn.textContent = paused ? 'Resume' : 'Pause'; }
-  function restartGame(){ stopSpawning(); fruits.forEach(f=>f.el&&f.el.remove()); fruits=[]; particles=[]; bladePoints=[]; running=false; paused=false; bigStart.style.display='block'; gameOver.style.display='none'; startGame(false); log('Restarted'); }
-  function endGame(){ running=false; stopSpawning(); goScore.textContent=score; const best=Math.max(Number(localStorage.getItem('fc_best')||0), score); localStorage.setItem('fc_best', best); goBest.textContent=best; gameOver.style.display='flex'; bigStart.style.display='block'; log('Game over. score=' + score); }
-
-  function updateHUD(){ scoreEl.textContent=score; livesEl.textContent=lives; coinsEl.textContent=coins; levelEl.textContent=level; }
-
-  // console UI control: protected by password prompt
-  function showProtectedConsole(){
-    const pw = prompt('Enter console password:');
-    if(pw === null) return; // cancel
-    if(pw === CONSOLE_PASS){
-      consoleBox.style.display = 'block';
-      consoleBox.setAttribute('aria-hidden','false');
-      log('Console unlocked (UI visible)');
-    } else {
-      alert('Wrong password');
-      log('Console unlock attempt failed');
-    }
-  }
-
-  // bindings
-  startBtn.addEventListener('click', ()=> startGame());
-  bigStart.addEventListener('click', ()=> startGame());
-  pauseBtn.addEventListener('click', ()=> pauseGame());
-  restartBtn.addEventListener('click', ()=> restartGame());
-  toggleConsole.addEventListener('click', ()=> {
-    // if currently hidden -> ask password; if visible -> hide immediately
-    if(consoleBox.style.display === 'none' || getComputedStyle(consoleBox).display === 'none'){
-      showProtectedConsole();
-    } else {
-      consoleBox.style.display = 'none';
-      consoleBox.setAttribute('aria-hidden','true');
-    }
-  });
-  clearConsole.addEventListener('click', ()=> consoleBody.innerHTML = '');
-  hideConsole.addEventListener('click', ()=> { consoleBox.style.display='none'; consoleBox.setAttribute('aria-hidden','true'); });
-
-  goRestart.addEventListener('click', ()=> { gameOver.style.display='none'; restartGame(); });
-
-  window.addEventListener('pointermove', onPointerMove);
-  window.addEventListener('pointerdown', onPointerMove);
-  window.addEventListener('pointerup', ()=> { bladePoints = []; });
-
-  function init(){
-    resize();
-    physicsTick();
-    // preload but allow fallback (game will auto-start after short delay)
-    preloadAll(2200).then(()=>{ log('preload finished'); setTimeout(()=>{ if(!running){ log('auto-start fallback'); startGame(true); } }, 300); });
-  }
-
-  window.addEventListener('load', init);
-  updateHUD();
-
-  // expose for debug (still reachable from console)
-  window.FruitCut = { start: startGame, pause: pauseGame, restart: restartGame, showConsole: ()=>{ consoleBox.style.display='block'; consoleBox.setAttribute('aria-hidden','false'); } };
-
+  function init(){resize();physicsTick();preloadAll().then(()=>setTimeout(()=>{if(!running)startGame(true);},300));}
+  window.addEventListener('load',init);
 })();
 </script>
 </body>
-                                       </html>
+</html>
