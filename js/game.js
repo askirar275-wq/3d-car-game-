@@ -1,319 +1,359 @@
-/* js/game.js - Final updated: bigger fruit + split-into-halves on slice + smoother */
-(function(){
+/* js/game.js — Debug / robust build
+   Put this file in /js/game.js and images in /images/
+   Edit ALL_IMAGES if needed.
+*/
+(() => {
+  // Config
+  const IMG_PATH = 'images/';
+  const ALL_IMAGES = [
+    'apple.png','banana.png','cantaloupe.png','guava.png','mango.png',
+    'orange.png','papaya.png','pear.png','pineapple.png','plum.png',
+    'pomegranate.png','strawberry.png','watermelon.png','bomb.png'
+  ];
+  const PRELOAD_TIMEOUT = 3500; // ms
+  const SPAWN_INTERVAL_INIT = 900; // ms
+  const FRUIT_SIZE = 84; // px base (we'll scale)
+  const GRAVITY = 0.28;
+  const THROW_VY_MIN = 12;
+  const THROW_VY_MAX = 18;
+  const VX_MAX = 2.2;
+
   // DOM
-  const gameArea = document.getElementById('gameArea');
+  const area = document.getElementById('gameArea');
   const bladeCanvas = document.getElementById('bladeCanvas');
-  const splatCanvas = document.getElementById('splatCanvas');
   const scoreEl = document.getElementById('scoreEl');
   const livesEl = document.getElementById('livesEl');
   const coinsEl = document.getElementById('coinsEl');
   const levelEl = document.getElementById('levelEl');
+  const bigStart = document.getElementById('bigStart');
   const startBtn = document.getElementById('startBtn');
   const pauseBtn = document.getElementById('pauseBtn');
   const restartBtn = document.getElementById('restartBtn');
-  const bigStart = document.getElementById('bigStart');
-  const debugBox = document.getElementById('debug');
+  const toggleDbg = document.getElementById('toggleDbg');
+  const dbgLog = document.getElementById('dbgLog');
+  const dbgClear = document.getElementById('dbgClear');
+  const debugConsole = document.getElementById('debugConsole');
+  const missingBox = document.getElementById('missingBox');
 
-  // config (tweak here)
-  const USER_IMGS = Array.isArray(window.USER_IMGS) ? window.USER_IMGS.slice() : [];
-  const BOMB_IMG = (typeof window.USER_BOMB === 'string') ? window.USER_BOMB : 'bomb.png';
-  const IMGS = USER_IMGS.length ? USER_IMGS.slice() : ["apple.png","banana.png","mango.png","orange.png","watermelon.png","strawberry.png"];
-  const ALL_IMAGES = IMGS.concat([BOMB_IMG]);
-  const PRELOAD_TIMEOUT = 2200;
-  const GRAVITY = 0.14;
-  const SPAWN_INTERVAL = 600; // lower -> more frequent spawn
-  const MAX_ACTIVE = 10;
+  // Canvas
+  const bctx = bladeCanvas.getContext('2d');
 
-  // state
-  let score=0, lives=3, coins=0, level=1;
-  let running=false;
-  const active = []; // active fruit objects
-  const halves = []; // active half pieces after cut
-  const CACHE = {}; // filename -> HTMLImageElement
-  let areaW=480, areaH=520;
-
-  // contexts
-  const bladeCtx = bladeCanvas.getContext('2d');
-  const splatCtx = splatCanvas.getContext('2d');
-
-  // resize
-  function resizeAll(){
-    const r = gameArea.getBoundingClientRect();
-    areaW = Math.max(1, Math.floor(r.width));
-    areaH = Math.max(1, Math.floor(r.height));
-    bladeCanvas.width = areaW;
-    bladeCanvas.height = areaH;
-    splatCanvas.width = areaW;
-    splatCanvas.height = areaH;
-    debug('[FruitCut] Area size:', areaW+'x'+areaH);
-  }
-  window.addEventListener('resize', ()=> setTimeout(resizeAll,60));
-  setTimeout(resizeAll,60);
-
-  // debug overlay
-  function debug(...args){ try{ console.log('[FruitCut]',...args); if(debugBox){ const d=document.createElement('div'); d.className='debugLine'; d.textContent = args.join(' '); debugBox.appendChild(d); while(debugBox.childElementCount>250) debugBox.removeChild(debugBox.firstChild); } }catch(e){} }
-
-  // preload
-  function preloadImages(timeoutMs = PRELOAD_TIMEOUT){
-    debug('[FruitCut] Preload start', ALL_IMAGES.join(','));
-    const prom = ALL_IMAGES.map(name => new Promise(resolve => {
-      try{
-        const img = new Image();
-        img.onload = () => { CACHE[name] = img; debug('[FruitCut] loaded', name); resolve({name,ok:true}); };
-        img.onerror = () => { debug('[FruitCut] failed:', name); resolve({name,ok:false}); };
-        img.src = 'images/' + name;
-      }catch(e){ debug('[FruitCut] preload err', name, e); resolve({name,ok:false}); }
-    }));
-    return Promise.race([ Promise.all(prom), new Promise(res => setTimeout(()=>res('__timeout__'), timeoutMs)) ])
-      .then(result => {
-        if(result === '__timeout__'){ debug('[FruitCut] preload timed out — continuing'); Promise.all(prom).then(()=> debug('[FruitCut] background preload finished')); }
-        const missing = ALL_IMAGES.filter(n => !CACHE[n]);
-        if(missing.length){ debug('[FruitCut] Missing images:', missing.join(', ')); } else debug('[FruitCut] Preload complete');
-      });
-  }
-
-  // spawn
-  function spawnOne(){
-    if(!running) return;
-    if(active.length >= MAX_ACTIVE) return;
-
-    const isBomb = Math.random() < 0.06;
-    const name = isBomb ? BOMB_IMG : IMGS[Math.floor(Math.random() * IMGS.length)];
-    const el = document.createElement('div');
-    el.className = 'fruit';
-    el.style.position = 'absolute';
-    el.style.pointerEvents = 'none';
-    el.style.willChange = 'transform,opacity';
-
-    const img = document.createElement('img');
-    img.draggable = false;
-    img.style.display = 'block';
-    // **BIGGER FRUIT**: use 16% of area width (min 64)
-    const imgWidth = Math.max(64, Math.floor(areaW * 0.16));
-    img.style.width = imgWidth + 'px';
-    img.style.height = 'auto';
-    img.style.userSelect = 'none';
-
-    if(CACHE[name] && CACHE[name].src){
-      img.src = CACHE[name].src;
-      el.appendChild(img);
-    } else {
-      // fallback emoji if missing
-      const fb = document.createElement('div');
-      fb.style.width = img.style.width;
-      fb.style.height = img.style.width;
-      fb.style.display = 'flex';
-      fb.style.alignItems = 'center';
-      fb.style.justifyContent = 'center';
-      fb.style.fontSize = Math.max(28, Math.floor(areaW * 0.06)) + 'px';
-      fb.textContent = emojiFor(name);
-      el.appendChild(fb);
-    }
-
-    // position: spawn from BOTTOM below view, so it travels up then falls
-    const w = imgWidth;
-    const left = Math.floor(Math.random() * Math.max(1, areaW - w - 24)) + 12;
-    el.style.left = left + 'px';
-    el.style.bottom = '-48px';
-    gameArea.appendChild(el);
-
-    // physics: upward impulse
-    const vx = (Math.random()-0.5) * 1.8;
-    const vy = 9 + Math.random() * 2.4; // stronger upward
-    const rot = (Math.random()-0.5) * 22;
-
-    active.push({el, x:left, y:-48, vx, vy, rot, type:name, cut:false, w});
-    debug('[FruitCut] spawned', name, CACHE[name] ? '(cached)' : '(fallback)');
-  }
-
-  function emojiFor(name){
-    if(!name) return '🍇';
-    if(name.includes('apple')) return '🍎';
-    if(name.includes('banana')) return '🍌';
-    if(name.includes('mango')) return '🥭';
-    if(name.includes('orange')) return '🍊';
-    if(name.includes('watermelon')) return '🍉';
-    if(name.includes('strawberry')) return '🍓';
-    if(name.includes('pineapple')) return '🍍';
-    if(name.includes('papaya')) return '🟠';
-    if(name.includes('pomegranate')) return '🔴';
-    if(name.includes('pear')) return '🍐';
-    if(name.includes('plum')) return '🍑';
-    return '🍇';
-  }
-
-  // main loop
-  let last = performance.now();
-  function step(now){
-    const dt = Math.min(40, now - last) / 16.666; last = now;
-
-    // update fruits
-    for(let i = active.length-1;i>=0;i--){
-      const f = active[i];
-      f.vy -= GRAVITY * dt;
-      f.x += f.vx * dt * 1.2;
-      f.y += f.vy * dt;
-      f.rot += f.vx * dt * 1.2;
-      f.el.style.transform = `translate3d(${f.x}px, ${-f.y}px, 0) rotate(${f.rot}deg)`;
-      if(f.x < -400 || f.x > areaW + 400 || f.y < -900){
-        try{ f.el.remove(); }catch(e){}
-        active.splice(i,1);
-      }
-    }
-
-    // update halves
-    for(let i = halves.length-1;i>=0;i--){
-      const h = halves[i];
-      h.vy -= GRAVITY * dt;
-      h.x += h.vx * dt;
-      h.y += h.vy * dt;
-      h.rot += h.vr * dt;
-      h.el.style.transform = `translate3d(${h.x}px, ${-h.y}px, 0) rotate(${h.rot}deg)`;
-      h.life -= dt;
-      h.el.style.opacity = Math.max(0, h.life/60);
-      if(h.y < -900 || h.x < -600 || h.x > areaW + 600 || h.life <= 0){
-        try{ h.el.remove(); }catch(e){}
-        halves.splice(i,1);
-      }
-    }
-
-    drawBlade();
-    drawJuice();
-    requestAnimationFrame(step);
-  }
-
-  // juice splats
-  const juice = [];
-  function addJuice(x,y,color){
-    juice.push({x,y,c:color,a:1,r:9+Math.random()*8,vy:-2-Math.random()*2,vx:(Math.random()-0.5)*3,t:0});
-  }
-  function drawJuice(){
-    splatCtx.clearRect(0,0,splatCanvas.width,splatCanvas.height);
-    for(let i=juice.length-1;i>=0;i--){
-      const p = juice[i];
-      splatCtx.beginPath();
-      splatCtx.fillStyle = `rgba(${p.c.r},${p.c.g},${p.c.b},${p.a})`;
-      splatCtx.arc(p.x, p.y + p.t*0.3, p.r, 0, Math.PI*2);
-      splatCtx.fill();
-      p.t++; p.y += p.vy; p.x += p.vx; p.a -= 0.03;
-      if(p.a <= 0) juice.splice(i,1);
-    }
-  }
-  function colorFor(name){
-    if(name.includes('apple')) return {r:220,g:60,b:70};
-    if(name.includes('banana')) return {r:240,g:210,b:50};
-    if(name.includes('orange')) return {r:245,g:140,b:40};
-    if(name.includes('mango')) return {r:255,g:150,b:40};
-    if(name.includes('strawberry')) return {r:230,g:80,b:90};
-    return {r:240,g:120,b:100};
-  }
-
-  // blade trail
+  // State
+  let CACHE = {}; // filename -> HTMLImageElement
+  let missing = [];
+  let running = false;
+  let spawnInterval = SPAWN_INTERVAL_INIT;
+  let spawnTimer = null;
+  let fruits = []; // active fruit objects
+  let score = 0, lives = 3, coins = 0, level = 1;
   let bladePoints = [];
-  function addBladePoint(x,y){ const r = gameArea.getBoundingClientRect(); bladePoints.push({x:x-r.left, y:y-r.top, t:Date.now()}); if(bladePoints.length>24) bladePoints.shift(); }
-  function drawBlade(){
-    bladeCtx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height);
-    if(bladePoints.length < 2) return;
-    bladeCtx.lineJoin = 'round'; bladeCtx.lineCap = 'round';
-    for(let i=0;i<bladePoints.length-1;i++){
-      const p1 = bladePoints[i], p2 = bladePoints[i+1];
-      const age = Date.now() - p1.t; const alpha = Math.max(0,1 - age/420);
-      bladeCtx.strokeStyle = `rgba(34,197,94,${0.95*alpha})`;
-      bladeCtx.lineWidth = 10*alpha + 3;
-      bladeCtx.beginPath(); bladeCtx.moveTo(p1.x,p1.y); bladeCtx.lineTo(p2.x,p2.y); bladeCtx.stroke();
-    }
-    bladePoints = bladePoints.filter(p => (Date.now() - p.t) < 520);
+
+  // Utilities (debug)
+  function dbg(msg, kind='info'){
+    const ts = new Date().toTimeString().slice(0,8);
+    const line = `[${ts}] ${msg}`;
+    const el = document.createElement('div');
+    el.textContent = line;
+    if(kind === 'err') el.style.color = '#ff6b6b';
+    dbgLog.appendChild(el);
+    dbgLog.scrollTop = dbgLog.scrollHeight;
+    console.log('[FruitCut]', msg);
+  }
+  dbgClear && dbgClear.addEventListener('click', ()=> dbgLog.innerHTML = '');
+
+  // Preload with fallback + timeout
+  function tryLoad(filename, timeout=PRELOAD_TIMEOUT){
+    return new Promise((resolve) => {
+      const img = new Image();
+      let settled = false;
+      img.onload = () => { if(!settled){ settled=true; resolve({ok:true, img, name:filename}); } };
+      img.onerror = () => { if(!settled){ settled=true; resolve({ok:false, name:filename}); } };
+      img.src = IMG_PATH + filename;
+      // timeout fallback
+      setTimeout(()=>{ if(!settled){ settled=true; resolve({ok:false, name:filename}); } }, timeout);
+    });
   }
 
-  // pointer / slicing
-  let isDown=false, history=[];
-  window.addEventListener('pointerdown', e => { isDown=true; history=[]; addBladePoint(e.clientX,e.clientY); e.preventDefault && e.preventDefault(); }, {passive:false});
-  window.addEventListener('pointermove', e => {
-    if(!isDown) return;
-    addBladePoint(e.clientX,e.clientY);
-    history.push({x:e.clientX,y:e.clientY});
-    if(history.length>22) history.shift();
-    if(history.length>=2){
-      const p1 = history[history.length-2], p2 = history[history.length-1];
-      for(const f of active.slice()){
-        try{
-          const r = f.el.getBoundingClientRect();
-          if(lineIntersectsRect(p1,p2,r)) sliceFruit(f, p1, p2);
-        }catch(e){}
+  async function preloadAll(){
+    dbg('Preload start: ' + ALL_IMAGES.join(','));
+    const results = [];
+    for(const name of ALL_IMAGES){
+      // quick attempt
+      const res = await tryLoad(name);
+      if(res.ok){
+        CACHE[name] = res.img;
+        dbg(`loaded ${name}`);
+      } else {
+        // final fallback: try relative path with ./images/
+        const res2 = await tryLoad(name);
+        if(res2.ok){
+          CACHE[name] = res2.img;
+          dbg(`loaded (fallback) ${name}`);
+        } else {
+          missing.push(name);
+          dbg(`failed: ${name}`, 'err');
+        }
       }
+      results.push(res);
     }
-  }, {passive:true});
-  window.addEventListener('pointerup', ()=>{ isDown=false; history=[]; bladePoints=[]; });
-
-  function lineIntersectsRect(p1,p2,rect){
-    if((p1.x < rect.left && p2.x < rect.left) || (p1.x > rect.right && p2.x > rect.right) ||
-       (p1.y < rect.top && p2.y < rect.top) || (p1.y > rect.bottom && p2.y > rect.bottom)) return false;
-    return true;
+    if(missing.length) {
+      missingBox.classList.add('visible');
+      missingBox.innerHTML = '<strong>Missing images:</strong><br>' + missing.join('<br>');
+      dbg('[FruitCut] Missing images: ' + missing.join(', '), 'err');
+    } else {
+      missingBox.classList.remove('visible');
+    }
+    dbg('Preload finished');
+    return results;
   }
 
-  // slice behavior: create two half elements and animate them
-  function sliceFruit(f, p1, p2){
-    if(!f || f.cut) return; f.cut = true;
-    // bomb behavior
-    if(f.type === BOMB_IMG){
-      lives = Math.max(0, lives - 1);
-      debug('[FruitCut] Bomb sliced. lives='+lives);
-      updateHUD();
-      try{ f.el.remove(); }catch(e){}
-      const idx = active.indexOf(f); if(idx>=0) active.splice(idx,1);
+  // Resize canvas
+  function resizeCanvas(){
+    const r = area.getBoundingClientRect();
+    bladeCanvas.width = Math.max(1, Math.floor(r.width));
+    bladeCanvas.height = Math.max(1, Math.floor(r.height));
+  }
+  window.addEventListener('resize', resizeCanvas);
+  setTimeout(resizeCanvas, 40);
+
+  // Blade trail
+  function addBladePoint(x,y){
+    const r = area.getBoundingClientRect();
+    bladePoints.push({x: x - r.left, y: y - r.top, t: Date.now()});
+    if(bladePoints.length > 30) bladePoints.shift();
+  }
+  function drawBlade(){
+    bctx.clearRect(0,0,bladeCanvas.width, bladeCanvas.height);
+    if(bladePoints.length<2){
+      requestAnimationFrame(drawBlade);
       return;
     }
+    bctx.lineJoin='round'; bctx.lineCap='round';
+    for(let i=0;i<bladePoints.length-1;i++){
+      const p1 = bladePoints[i], p2 = bladePoints[i+1];
+      const age = Date.now() - p1.t;
+      const alpha = Math.max(0, 1 - age/350);
+      bctx.strokeStyle = `rgba(34,197,94,${0.9*alpha})`;
+      bctx.lineWidth = 18 * alpha;
+      bctx.beginPath(); bctx.moveTo(p1.x,p1.y); bctx.lineTo(p2.x,p2.y); bctx.stroke();
+    }
+    bladePoints = bladePoints.filter(p => (Date.now() - p.t) < 450);
+    requestAnimationFrame(drawBlade);
+  }
+  drawBlade();
 
-    // compute screen rect & center
-    const rect = f.el.getBoundingClientRect();
-    const areaRect = gameArea.getBoundingClientRect();
-    const cx = rect.left + rect.width/2 - areaRect.left;
-    const cy = rect.top + rect.height/2 - areaRect.top;
+  // Pointer events (throttled)
+  let lastPointerTime = 0;
+  function onPointerMove(e){
+    const now = Date.now();
+    if(now - lastPointerTime < 16) return; // ~60fps throttle
+    lastPointerTime = now;
+    if(e.isPrimary !== false) addBladePoint(e.clientX, e.clientY);
+    checkSliceLine(); // detect slices per move
+  }
+  function onPointerDown(e){
+    addBladePoint(e.clientX, e.clientY);
+  }
+  function onPointerUp(e){
+    bladePoints = [];
+  }
+  window.addEventListener('pointerdown', onPointerDown);
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerup', onPointerUp);
+  window.addEventListener('pointercancel', onPointerUp);
 
-    // create two halves
-    const src = (f.el.querySelector('img') && f.el.querySelector('img').src) ? f.el.querySelector('img').src : (CACHE[f.type] && CACHE[f.type].src) || '';
-    createHalf(src, rect.left - areaRect.left, areaRect.bottom - rect.bottom, rect.width, rect.height, 'left');
-    createHalf(src, rect.left - areaRect.left, areaRect.bottom - rect.bottom, rect.width, rect.height, 'right');
+  // Fruit spawn / physics
+  function rand(min,max){ return Math.random()*(max-min)+min; }
 
-    // juice + cleanup
-    addJuice(cx, cy, colorFor(f.type));
-    try{ f.el.remove(); }catch(e){}
-    const idx = active.indexOf(f); if(idx>=0) active.splice(idx,1);
-    score += 10; coins += 1; updateHUD();
-    debug('[FruitCut] Fruit sliced:', f.type);
+  function spawnFruit(){
+    if(!running) return;
+    // choose random image from cached (exclude missing)
+    const available = ALL_IMAGES.filter(n => CACHE[n]);
+    if(available.length === 0) {
+      dbg('[FruitCut] no images available to spawn', 'err');
+      return;
+    }
+    const name = available[Math.floor(Math.random()*available.length)];
+    const img = CACHE[name];
+    const r = area.getBoundingClientRect();
+    const baseSize = FRUIT_SIZE;
+    // spawn near bottom, with random x
+    const x = rand(40, r.width - 40);
+    const y = r.height + 20; // start a bit below bottom
+    const vx = rand(-VX_MAX, VX_MAX);
+    const vy = -rand(THROW_VY_MIN, THROW_VY_MAX); // negative vy to go up first
+    const rot = rand(-40,40);
+    const spin = rand(-3,3);
+
+    // Create DOM sprite
+    const el = document.createElement('img');
+    el.src = img.src;
+    el.className = 'fruit-sprite';
+    el.style.width = (baseSize) + 'px';
+    el.style.left = (x - baseSize/2) + 'px';
+    el.style.top = (y - baseSize/2) + 'px';
+    el.style.transform = `translate(-50%,-50%) rotate(${rot}deg)`;
+    el.dataset.name = name;
+    area.appendChild(el);
+
+    const obj = {
+      name, el, x, y, vx, vy, rot, spin, size: baseSize, sliced: false
+    };
+    fruits.push(obj);
+    dbg(`spawned ${name} (cached)`);
+
+    return obj;
   }
 
-  // create half piece element and animate physics
-  function createHalf(src, left, bottom, fullW, fullH, side){
-    const half = document.createElement('div');
-    half.className = 'half';
-    half.style.left = left + 'px';
-    half.style.bottom = bottom + 'px';
-    half.style.width = (fullW/2) + 'px';
-    half.style.height = fullH + 'px';
-    half.style.transformOrigin = '50% 50%';
-    // child crop which shows either left or right half via background-position
-    const crop = document.createElement('div');
-    crop.className = 'crop';
-    crop.style.width = '200%';
-    crop.style.height = '100%';
-    crop.style.backgroundImage = src ? `url(${src})` : 'none';
-    crop.style.backgroundSize = `${fullW*2}px ${fullH}px`;
-    if(side === 'left'){
-      crop.style.left = '0px';
-    } else {
-      // shift left so right half shows inside half box
-      crop.style.left = `-${fullW}px`;
+  function updatePhysics(){
+    const r = area.getBoundingClientRect();
+    for(let i = fruits.length -1; i>=0; i--){
+      const f = fruits[i];
+      if(f.sliced){ // halves handled separately
+        // let halves continue physics (we will remove when out)
+        continue;
+      }
+      f.vy += GRAVITY;
+      f.x += f.vx;
+      f.y += f.vy;
+      f.rot += f.spin;
+      // update DOM
+      f.el.style.left = (f.x) + 'px';
+      f.el.style.top = (f.y) + 'px';
+      f.el.style.transform = `translate(-50%,-50%) rotate(${f.rot}deg)`;
+      // check out-of-bounds (fell below)
+      if(f.y - f.size/2 > r.height + 120){
+        // remove and deduct life (if not bomb)
+        if(!f.sliced){
+          if(f.name !== 'bomb.png'){ lives = Math.max(0, lives - 1); updateHUD(); dbg(`missed ${f.name} -> lives=${lives}`); }
+        }
+        removeFruit(i);
+      }
     }
-    half.appendChild(crop);
-    gameArea.appendChild(half);
+  }
 
-    // initial physics
-    const dir = (side === 'left') ? -1 : 1;
-    const vx = (0.9 + Math.random()*1.2) * dir;
-    const vy = 6 + Math.random()*2;
-    const vr = (Math.random()*6 + 4) * dir;
-    halves.push({el:half,x:left,y:-bottom,vx,vy,rot: (Math.random()-0.5)*20,vr,life:90});
+  function removeFruit(index){
+    const f = fruits[index];
+    if(!f) return;
+    try{ f.el.remove(); }catch(e){}
+    fruits.splice(index,1);
+  }
+
+  // slice detection: check current blade segment against fruit bounding boxes
+  function checkSliceLine(){
+    if(bladePoints.length < 2) return;
+    const p1 = bladePoints[bladePoints.length-2];
+    const p2 = bladePoints[bladePoints.length-1];
+    for(let i=0;i<fruits.length;i++){
+      const f = fruits[i];
+      if(f.sliced) continue;
+      const r = f.el.getBoundingClientRect();
+      const rect = {left:r.left, top:r.top, right:r.right, bottom:r.bottom};
+      if(lineIntersectsRect(p1, p2, rect)){
+        sliceFruit(i, p1, p2);
+      }
+    }
+  }
+
+  function lineIntersectsRect(p1,p2,rect){
+    // trivial bounding check: if either endpoint inside rect -> intersect
+    if(pointInRect(p1,rect) || pointInRect(p2,rect)) return true;
+    // else check if segment intersects any rect edge
+    const edges = [
+      [{x:rect.left,y:rect.top},{x:rect.right,y:rect.top}],
+      [{x:rect.right,y:rect.top},{x:rect.right,y:rect.bottom}],
+      [{x:rect.right,y:rect.bottom},{x:rect.left,y:rect.bottom}],
+      [{x:rect.left,y:rect.bottom},{x:rect.left,y:rect.top}]
+    ];
+    for(const [a,b] of edges){
+      if(segSegIntersect(p1,p2,a,b)) return true;
+    }
+    return false;
+  }
+  function pointInRect(p,rect){ return p.x >= rect.left && p.x <= rect.right && p.y >= rect.top && p.y <= rect.bottom; }
+  function segSegIntersect(p1,p2,p3,p4){
+    // standard segment intersection
+    function orient(a,b,c){ return (b.x-a.x)*(c.y-a.y) - (b.y-a.y)*(c.x-a.x); }
+    const o1 = orient(p1,p2,p3), o2 = orient(p1,p2,p4), o3 = orient(p3,p4,p1), o4 = orient(p3,p4,p2);
+    if(o1*o2 < 0 && o3*o4 < 0) return true;
+    return false;
+  }
+
+  // slicing: remove fruit element and spawn two halves
+  function sliceFruit(index, p1, p2){
+    const f = fruits[index];
+    if(!f || f.sliced) return;
+    f.sliced = true;
+    dbg(`Fruit sliced: ${f.name}`);
+    // score / bomb handling
+    if(f.name === 'bomb.png'){
+      lives = Math.max(0, lives - 1);
+      updateHUD();
+      // bomb explosion visual (simple)
+      const expl = document.createElement('div');
+      expl.textContent = '💥';
+      expl.style.position = 'absolute';
+      expl.style.left = f.x + 'px';
+      expl.style.top = f.y + 'px';
+      expl.style.transform = 'translate(-50%,-50%)';
+      expl.style.fontSize = '28px';
+      area.appendChild(expl);
+      setTimeout(()=>expl.remove(),600);
+      removeFruit(index);
+      return;
+    }
+    // normal fruit: +score + coin
+    score += 10; coins += 1; updateHUD();
+
+    // create halves (two img elements with clip + transform)
+    const halfA = document.createElement('img');
+    const halfB = document.createElement('img');
+    halfA.src = f.el.src;
+    halfB.src = f.el.src;
+    halfA.className = halfB.className = 'fruit-sprite';
+    const size = f.size;
+    halfA.style.width = halfB.style.width = (size) + 'px';
+
+    // place both at same center
+    halfA.style.left = halfB.style.left = f.x + 'px';
+    halfA.style.top = halfB.style.top = f.y + 'px';
+
+    // simple mask by using CSS clip-path to show halves
+    halfA.style.clipPath = 'polygon(0 0, 60% 0, 60% 100%, 0% 100%)';
+    halfB.style.clipPath = 'polygon(40% 0, 100% 0, 100% 100%, 40% 100%)';
+
+    area.appendChild(halfA);
+    area.appendChild(halfB);
+    // remove original
+    try{ f.el.remove(); }catch(e){}
+    fruits.splice(index,1);
+
+    // animate halves physics
+    const a = {x:f.x, y:f.y, vx: f.vx - 1.4, vy: f.vy - 2, rot: f.rot - 12};
+    const b = {x:f.x, y:f.y, vx: f.vx + 1.6, vy: f.vy - 1.6, rot: f.rot + 12};
+    const start = Date.now();
+    const animateHalves = () => {
+      a.vy += GRAVITY; b.vy += GRAVITY;
+      a.x += a.vx; b.x += b.vx;
+      a.y += a.vy; b.y += b.vy;
+      a.rot += 2; b.rot -= 2;
+      halfA.style.left = a.x + 'px';
+      halfA.style.top = a.y + 'px';
+      halfA.style.transform = `translate(-50%,-50%) rotate(${a.rot}deg)`;
+      halfB.style.left = b.x + 'px';
+      halfB.style.top = b.y + 'px';
+      halfB.style.transform = `translate(-50%,-50%) rotate(${b.rot}deg)`;
+      // fade out after 1.5s
+      const t = Date.now() - start;
+      const alpha = Math.max(0, 1 - t/1400);
+      halfA.style.opacity = halfB.style.opacity = alpha;
+      if(t < 1800 && (a.y < area.clientHeight + 200 || b.y < area.clientHeight + 200)){
+        requestAnimationFrame(animateHalves);
+      } else {
+        try{ halfA.remove(); halfB.remove(); }catch(e){}
+      }
+    };
+    requestAnimationFrame(animateHalves);
   }
 
   // HUD
@@ -322,33 +362,97 @@
     livesEl.textContent = lives;
     coinsEl.textContent = coins;
     levelEl.textContent = level;
-    pauseBtn.disabled = !running;
+    if(lives <= 0){
+      stopGame();
+      dbg('[FruitCut] Game Over');
+      bigStart.textContent = 'RESTART';
+      bigStart.style.display = 'block';
+    }
   }
 
-  // scheduler
-  let spawnTimer = null;
-  function startGame(){
+  // game loop
+  let loopId = null;
+  function gameTick(){
+    updatePhysics();
+    loopId = requestAnimationFrame(gameTick);
+  }
+
+  // start / stop / pause
+  async function startGame(auto=false){
     if(running) return;
+    dbg('[FruitCut] start requested');
+    // preload if not done
+    if(Object.keys(CACHE).length === 0 && missing.length === 0){
+      await preloadAll();
+    }
+    // if major images missing, still continue but notify
+    if(missing.length) dbg('[FruitCut] continuing despite missing images', 'err');
     running = true;
-    if(!spawnTimer) spawnTimer = setInterval(spawnOne, SPAWN_INTERVAL);
-    bigStart && (bigStart.style.display='none');
-    debug('[FruitCut] Game started');
-    updateHUD();
+    bigStart.style.display = 'none';
+    pauseBtn.disabled = false;
+    dbg('[FruitCut] Game started');
+    // spawn timer
+    if(spawnTimer) clearInterval(spawnTimer);
+    spawnTimer = setInterval(spawnFruit, spawnInterval);
+    // immediate spawn for quick feedback
+    spawnFruit();
+    // start physics loop
+    if(!loopId) loopId = requestAnimationFrame(gameTick);
   }
-  function pauseGame(){ running = !running; if(!running && spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } else if(running && !spawnTimer) spawnTimer = setInterval(spawnOne, SPAWN_INTERVAL); debug('[FruitCut] Pause toggled', running); updateHUD(); }
-  function restartGame(){ location.reload(); }
+  function stopGame(){
+    running = false;
+    if(spawnTimer) { clearInterval(spawnTimer); spawnTimer = null; }
+    if(loopId) { cancelAnimationFrame(loopId); loopId = null; }
+    pauseBtn.disabled = true;
+  }
+  function pauseGame(){
+    if(!running) return;
+    stopGame();
+    dbg('[FruitCut] Paused');
+  }
+  function restartGame(){
+    // cleanup sprites
+    document.querySelectorAll('.fruit-sprite').forEach(el => el.remove());
+    fruits = [];
+    score = 0; lives = 3; coins = 0; level = 1;
+    updateHUD();
+    stopGame();
+    setTimeout(()=> startGame(), 120);
+    dbg('[FruitCut] Restarted');
+  }
 
-  startBtn && startBtn.addEventListener('click', startGame);
-  pauseBtn && pauseBtn.addEventListener('click', pauseGame);
-  restartBtn && restartBtn.addEventListener('click', restartGame);
-  bigStart && (bigStart.addEventListener('click', startGame));
-  document.getElementById('consoleBtn').addEventListener('click', ()=> { debugBox.style.display = (debugBox.style.display==='block'?'none':'block'); });
+  // Toggle console
+  toggleDbg.addEventListener('click', ()=> {
+    debugConsole.classList.toggle('hidden');
+  });
 
-  // loader & loop
+  // Button wiring
+  startBtn.addEventListener('click', ()=> startGame());
+  pauseBtn.addEventListener('click', ()=> pauseGame());
+  restartBtn.addEventListener('click', ()=> restartGame());
+  bigStart.addEventListener('click', ()=> { startGame(); bigStart.style.display='none'; });
+
+  // slice detection also on touchend to capture quick swipes
+  window.addEventListener('touchend', (e) => checkSliceLine(), {passive:true});
+
+  // Auto-start fallback: try to auto start, if not working user can press Start
   (async function init(){
-    debug('[FruitCut] script init');
-    await preloadImages(PRELOAD_TIMEOUT);
-    resizeAll();
-    requestAnimationFrame(step);
-    // auto start fallback
-    setTimeout(()=>{ if(!
+    dbg('[FruitCut] script init');
+    // small attempt to prefill CACHE with direct images (helps in some hosting setups)
+    for(const name of ALL_IMAGES){
+      const tmp = new Image();
+      tmp.src = IMG_PATH + name;
+      // don't await here; these will populate browser cache for subsequent loads
+      // but we still run full preload below to verify.
+    }
+    await preloadAll();
+    resizeCanvas();
+    // auto start after preload: but if any missing, we still try fallback start
+    try {
+      startGame(true);
+    } catch(e){
+      dbg('[FruitCut] Auto-start failed: ' + (e && e.message), 'err');
+    }
+  })();
+
+})();
