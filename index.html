@@ -5,26 +5,14 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Fruit Cut — Final</title>
   <link rel="stylesheet" href="css/style.css">
-  <!-- USER IMAGE LIST — put this BEFORE js/game.js so script picks your images -->
   <script>
     window.USER_IMGS = [
-      "apple.png",
-      "banana.png",
-      "cantaloupe.png",
-      "guava.png",
-      "mango.png",
-      "orange.png",
-      "papaya.png",
-      "pear.png",
-      "pineapple.png",
-      "plum.png",
-      "pomegranate.png",
-      "strawberry.png",
-      "watermelon.png"
+      "apple.png","banana.png","cantaloupe.png","guava.png","mango.png",
+      "orange.png","papaya.png","pear.png","pineapple.png","plum.png",
+      "pomegranate.png","strawberry.png","watermelon.png"
     ];
     window.USER_BOMB = "bomb.png";
   </script>
-  <!-- Optional: Eruda console (mobile debug). It will load only if toggled by game. -->
 </head>
 <body>
   <div class="container">
@@ -45,7 +33,6 @@
 
       <div id="bigStart" class="bigStart">START</div>
 
-      <!-- debug console overlay (hidden by default) -->
       <div id="debug" class="debug" aria-hidden="true"></div>
     </div>
 
@@ -56,7 +43,7 @@
       <button id="consoleBtn" class="btn ghost">Toggle Console</button>
     </div>
 
-    <p class="tip">Tip: Slice fruits by swiping. Cut combos — avoid bombs. Keep images in <code>images/</code> folder.</p>
+    <p class="tip">Tip: Slice fruits by swiping. Cut combos — avoid bombs. Put images in <code>images/</code>.</p>
   </div>
 
   <script src="js/game.js"></script>
