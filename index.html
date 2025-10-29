@@ -3,407 +3,466 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Fixed Preload & Gameover</title>
+<title>Fruit Cut — Loading Emoji Slice</title>
 <style>
-:root{--bg:#f4f7fb;--panel:#fff;--accent:#22c55e;--btn:#111}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%;margin:0;background:var(--bg);font-family:Inter,system-ui,Roboto,Arial,sans-serif;color:#111}
-.container{max-width:980px;margin:0 auto;padding:12px}
-h1{text-align:center;margin:6px 0 8px}
-.hud{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
-.stat{background:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,0.06);font-weight:700}
-#gameWrapper{position:relative;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#cfeeff,#f9f7ef);height:68vh;min-height:420px}
-canvas{position:absolute;inset:0;z-index:3;pointer-events:none}
-#fxCanvas{z-index:6}
-#loaderOverlay{position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(255,255,255,0.95)}
-#loaderBar{width:260px;height:12px;background:#eee;border-radius:12px;overflow:hidden;margin-top:10px}
-#loaderFill{height:100%;width:0;background:linear-gradient(90deg,#22c55e,#06b6d4)}
-#bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:50;background:var(--btn);color:#fff;padding:14px 20px;border-radius:12px;font-weight:800;cursor:pointer;box-shadow:0 12px 30px rgba(0,0,0,0.22)}
-.controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;padding:10px;margin-top:8px}
-.btn{background:#fff;border:0;padding:10px 14px;border-radius:10px;cursor:pointer;box-shadow:0 8px 24px rgba(0,0,0,0.06);font-weight:700}
-#gameOverOverlay{position:absolute;inset:0;z-index:70;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6)}
-.modalCard{background:#fff;padding:18px;border-radius:12px;text-align:center;min-width:260px}
-.consoleBox{position:absolute;right:8px;top:8px;background:rgba(0,0,0,0.78);color:#fff;padding:8px;border-radius:8px;z-index:80;max-height:45%;overflow:auto;font-family:monospace;font-size:12px;display:none}
-.small{font-size:13px;color:#666}
+  :root{
+    --bg:#f4f7fb; --card:#f0ece7; --accent:#22c55e; --btn:#111;
+  }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial; background:var(--bg);color:#111}
+  .container{max-width:520px;margin:8px auto;padding:8px}
+  h1{font-size:26px;margin:4px 0 10px}
+  .hud{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;align-items:center}
+  .stat{background:#fff;padding:8px 12px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.04)}
+  #gameWrapper{position:relative;height:66vh;min-height:420px;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,0.06);background:linear-gradient(180deg,#e6f7ff 0%, #f7f2e8 100%);display:flex;align-items:center;justify-content:center}
+  #gameArea{position:absolute;inset:0;touch-action:none}
+  canvas#blade{position:absolute;inset:0;z-index:150;pointer-events:none}
+  #loadingOverlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:200;background:rgba(255,255,255,0.88);flex-direction:column;gap:12px}
+  .progress{width:70%;max-width:380px;height:12px;border-radius:999px;background:#eee;overflow:hidden}
+  .bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),#06b6d4)}
+  .progressText{font-size:14px;color:#333}
+  #emojiStage{position:absolute;inset:0;z-index:210;pointer-events:auto}
+  .emoji{position:absolute;font-size:74px;user-select:none;touch-action:none;cursor:default;pointer-events:auto;transform-origin:center;will-change:transform,opacity}
+  .btnRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px}
+  button{padding:9px 14px;border-radius:12px;border:0;background:var(--btn);color:#fff;cursor:pointer;font-weight:700}
+  .ghost{background:#fff;color:#111;border:1px solid #eee;box-shadow:none}
+  #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:120;background:rgba(0,0,0,0.9);color:#fff;padding:14px 22px;border-radius:12px;font-size:18px;cursor:pointer;display:none}
+  .scorePop{position:absolute;right:12px;top:12px;background:#fff;padding:6px 10px;border-radius:8px;z-index:500;display:none;box-shadow:0 10px 30px rgba(2,6,23,0.08)}
+  /* small screen tweaks */
+  @media (max-width:420px){ .emoji{font-size:56px} #gameWrapper{height:62vh} }
+  /* cutting halves simple style (for image game later) */
+  .half{position:absolute;pointer-events:none;will-change:transform,opacity}
 </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🍉 Fruit Cut — Fixed Preload & Gameover</h1>
-    <div class="hud">
-      <div class="stat">Score: <span id="score">0</span></div>
-      <div class="stat">Lives: <span id="lives">3</span></div>
-      <div class="stat">Coins: <span id="coins">0</span></div>
-      <div style="flex:1"></div>
-      <div class="stat">Level: <span id="level">1</span></div>
-    </div>
+<div class="container">
+  <h1>🍉 Fruit Cut — Loading Emoji Slice</h1>
 
-    <div id="gameWrapper">
-      <canvas id="gameCanvas"></canvas>
-      <canvas id="fxCanvas"></canvas>
-
-      <div id="loaderOverlay">
-        <div id="loaderText">Loading images…</div>
-        <div id="loaderBar"><div id="loaderFill"></div></div>
-        <div class="small" id="loaderStatus">0 / 0</div>
-      </div>
-
-      <div id="bigStart">START</div>
-
-      <div id="gameOverOverlay">
-        <div class="modalCard">
-          <h2>Game Over</h2>
-          <p>Score: <span id="goScore">0</span></p>
-          <p>Best: <span id="goBest">0</span></p>
-          <div style="margin-top:12px">
-            <button id="goRestart" class="btn">Play Again</button>
-          </div>
-        </div>
-      </div>
-
-      <div class="consoleBox" id="consoleBox"></div>
-    </div>
-
-    <div class="controls">
-      <button id="startBtn" class="btn" disabled>Start</button>
-      <button id="pauseBtn" class="btn">Pause</button>
-      <button id="restartBtn" class="btn">Restart</button>
-      <button id="toggleConsole" class="btn">Console</button>
-    </div>
+  <div class="hud">
+    <div class="stat">Score: <strong id="score">0</strong></div>
+    <div class="stat">Lives: <strong id="lives">3</strong></div>
+    <div class="stat">Coins: <strong id="coins">0</strong></div>
+    <div style="flex:1"></div>
+    <div class="stat">Level: <strong id="level">1</strong></div>
   </div>
 
+  <div id="gameWrapper">
+    <div id="gameArea" aria-label="Game area"></div>
+    <canvas id="blade"></canvas>
+
+    <!-- Loading overlay: shows until images preloaded -->
+    <div id="loadingOverlay" aria-hidden="false">
+      <div id="emojiStage" aria-hidden="false"></div>
+      <div class="progress" aria-hidden="true"><div class="bar" id="bar"></div></div>
+      <div class="progressText" id="progressText">Loading images... 0 / 0</div>
+    </div>
+
+    <!-- Big start: appears after preload -->
+    <div id="bigStart">START</div>
+
+    <div class="scorePop" id="scorePop">+0</div>
+  </div>
+
+  <div class="btnRow">
+    <button id="startBtn" class="ghost">Start</button>
+    <button id="pauseBtn" class="ghost" disabled>Pause</button>
+    <button id="restartBtn" class="ghost">Restart</button>
+    <button id="shopBtn" class="ghost">Shop</button>
+  </div>
+</div>
+
 <script>
-/* Updated: preload fix + removed blob-SW registration to avoid GitHub Pages errors.
-   Keep images in images/ folder. Names used (you can add more):
-   apple.png banana.png cantaloupe.png guava.png mango.png orange.png papaya.png
-   pear.png pineapple.png plum.png pomegranate.png strawberry.png watermelon.png bomb.png
+/*
+ Single-file final:
+ - Preloads images from IMAGES array (relative path 'images/')
+ - While preload runs: emojiStage spawns emoji which user can slice
+ - Slicing emoji creates a split animation + increases score
+ - When preload done: loadingOverlay hides, bigStart shows
+ - Blade trail + pointer handling implemented
+ - Adjust IMAGES array to match your /images/ filenames
 */
 
-const FRUITS = ['apple.png','banana.png','cantaloupe.png','guava.png','mango.png','orange.png','papaya.png','pear.png','pineapple.png','plum.png','pomegranate.png','strawberry.png','watermelon.png'];
-const BOMB = 'bomb.png';
-const IMG_PATH = 'images/';
-const ALL = [...FRUITS, BOMB];
+/* ===== CONFIG ===== */
+const IMG_PATH = 'images/'; // folder where your fruit PNGs live (relative)
+const IMAGES = [
+  'apple.png','banana.png','orange.png','strawberry.png','watermelon.png',
+  'mango.png','papaya.png','pineapple.png','pomegranate.png','pear.png',
+  'plum.png','guava.png','cantaloupe.png','bomb.png'
+];
+const EMOJI_CHOICE = ['🍉','🍎','🍊','🍌','🍍','🥭','🍓','🍐']; // used while loading
+const EMOJI_SPAWN_INTERVAL = 700; // ms spawn emoji while loading
+const EMOJI_SIZE = 72; // px (font-size)
+const MAX_EMOJI = 10;
 
-// UI elements
-const loaderOverlay = document.getElementById('loaderOverlay');
-const loaderFill = document.getElementById('loaderFill');
-const loaderStatus = document.getElementById('loaderStatus');
-const startBtn = document.getElementById('startBtn');
+/* ===== STATE ===== */
+let loadedImages = {}; // filename -> Image element
+let preloadCount = 0;
+let score = 0, lives = 3, coins = 0, level = 1;
+let running = false;
+
+/* ===== DOM ===== */
+const gameArea = document.getElementById('gameArea');
+const loadingOverlay = document.getElementById('loadingOverlay');
+const emojiStage = document.getElementById('emojiStage');
+const bar = document.getElementById('bar');
+const progressText = document.getElementById('progressText');
 const bigStart = document.getElementById('bigStart');
-const pauseBtn = document.getElementById('pauseBtn');
-const restartBtn = document.getElementById('restartBtn');
-const toggleConsole = document.getElementById('toggleConsole');
-const consoleBox = document.getElementById('consoleBox');
-const gameOverOverlay = document.getElementById('gameOverOverlay');
-const goRestart = document.getElementById('goRestart');
-const goScore = document.getElementById('goScore');
-const goBest = document.getElementById('goBest');
 const scoreEl = document.getElementById('score');
 const livesEl = document.getElementById('lives');
 const coinsEl = document.getElementById('coins');
 const levelEl = document.getElementById('level');
+const startBtn = document.getElementById('startBtn');
+const pauseBtn = document.getElementById('pauseBtn');
+const restartBtn = document.getElementById('restartBtn');
+const shopBtn = document.getElementById('shopBtn');
+const scorePop = document.getElementById('scorePop');
 
-const gameCanvas = document.getElementById('gameCanvas');
-const fxCanvas = document.getElementById('fxCanvas');
-const ctx = gameCanvas.getContext('2d');
-const fx = fxCanvas.getContext('2d');
-
-let areaW=0, areaH=0;
-function resize(){
-  const rect = document.getElementById('gameWrapper').getBoundingClientRect();
-  areaW = Math.floor(rect.width); areaH = Math.floor(rect.height);
-  gameCanvas.width = areaW; gameCanvas.height = areaH;
-  fxCanvas.width = areaW; fxCanvas.height = areaH;
+/* ===== BLADE CANVAS ===== */
+const blade = document.getElementById('blade');
+const bctx = blade.getContext('2d');
+let bladePoints = [];
+const MAX_POINTS = 26;
+function resizeCanvas(){
+  const r = gameArea.getBoundingClientRect();
+  blade.width = Math.max(1, Math.floor(r.width));
+  blade.height = Math.max(1, Math.floor(r.height));
+  blade.style.left = r.left + 'px';
+  blade.style.top = r.top + 'px';
 }
-window.addEventListener('resize', resize);
+window.addEventListener('resize', resizeCanvas);
+setTimeout(resizeCanvas,50);
 
-// state
-let imageBitmapCache = new Map();
-let loaded = 0, failed = [];
-let running = false, paused = false;
-let score = 0, lives = 3, coins = 0, level = 1;
-let spawnTimer = null;
-let fruits = [];
-let particles = [];
-let pointerTrail = [];
-const MAX_TRAIL = 28;
-
-// logger
-function log(...args){
-  const s = '[FruitCut] ' + args.join(' ');
-  console.log(s);
-  const d = document.createElement('div'); d.textContent = s;
-  consoleBox.prepend(d);
+/* draw blade */
+function addBladePoint(x,y){
+  const r = gameArea.getBoundingClientRect();
+  bladePoints.push({x:x - r.left, y:y - r.top, t:Date.now()});
+  if (bladePoints.length > MAX_POINTS) bladePoints.shift();
 }
-
-// PRELOAD (fixed): fetch -> blob -> cache.put(new Response(blob)) -> createImageBitmap(blob)
-async function preloadAll(concurrency=3){
-  loaderStatus.textContent = `0 / ${ALL.length}`;
-  const queue = ALL.slice();
-  const cache = await caches.open('fruitcut-cache-v1');
-  loaded = 0; failed = [];
-  async function worker(){
-    while(queue.length){
-      const name = queue.shift();
-      try{
-        const reqUrl = IMG_PATH + name;
-        // try cache first
-        const match = await cache.match(reqUrl);
-        if(match){
-          const blob = await match.blob();
-          const bmp = await createImageBitmap(blob);
-          imageBitmapCache.set(name, bmp);
-          log('cached', name);
-          loaded++; loaderFill.style.width = (loaded / ALL.length * 100) + '%';
-          loaderStatus.textContent = `${loaded} / ${ALL.length}`;
-          continue;
-        }
-        // fetch remote
-        const resp = await fetch(reqUrl, {cache:'no-store'});
-        if(!resp.ok) throw new Error('HTTP ' + resp.status);
-        // read blob ONCE
-        const blob = await resp.blob();
-        // store blob in cache (use new Response from blob)
-        try{
-          await cache.put(reqUrl, new Response(blob, {headers:{'Content-Type': blob.type || 'image/png'}}));
-        }catch(e){ /* cache put may fail on some hosts, ignore */ }
-        // decode
-        const bmp = await createImageBitmap(blob);
-        imageBitmapCache.set(name, bmp);
-        log('loaded', name);
-      }catch(err){
-        log('failed', name, err && err.message ? err.message : err);
-        failed.push(name);
-      } finally {
-        loaded++; loaderStatus.textContent = `${loaded} / ${ALL.length}`;
-        loaderFill.style.width = (loaded / ALL.length * 100) + '%';
-      }
-    }
+function drawBlade(){
+  bctx.clearRect(0,0,blade.width, blade.height);
+  if (bladePoints.length < 2){ requestAnimationFrame(drawBlade); return; }
+  bctx.lineJoin = 'round'; bctx.lineCap = 'round';
+  for (let i=0;i<bladePoints.length-1;i++){
+    const p1 = bladePoints[i], p2 = bladePoints[i+1];
+    const age = Date.now() - p1.t;
+    const alpha = Math.max(0, 1 - age/350);
+    bctx.strokeStyle = `rgba(34,197,94,${0.92*alpha})`;
+    bctx.lineWidth = 18 * alpha;
+    bctx.beginPath(); bctx.moveTo(p1.x,p1.y); bctx.lineTo(p2.x,p2.y); bctx.stroke();
   }
-  const workers = [];
-  for(let i=0;i<concurrency;i++) workers.push(worker());
-  await Promise.all(workers);
+  bladePoints = bladePoints.filter(p => (Date.now() - p.t) < 450);
+  requestAnimationFrame(drawBlade);
 }
+drawBlade();
 
-// spawn object
-function spawnFruit(){
-  if(!running || paused) return;
-  const isBomb = Math.random() < 0.08;
-  const name = isBomb ? BOMB : FRUITS[Math.floor(Math.random()*FRUITS.length)];
-  const img = imageBitmapCache.get(name) || null;
-  const baseW = Math.max(56, Math.floor(areaW * 0.16)); // slightly larger
-  const scale = Math.random()*0.6 + 0.9;
-  const w = Math.floor(baseW * scale);
-  const h = img ? Math.floor(w * (img.height / img.width)) : w;
-  const x = Math.random()*(areaW - w) + w/2;
-  const y = areaH + h/2 + 10;
-  const vy = - (Math.random()*(6) + 12);
-  const vx = Math.random()*4 - 2;
-  const rot = (Math.random()*40 - 20) * Math.PI/180;
-  const obj = {name, img, x, y, w, h, vx, vy, rot, isBomb, sliced:false, born:performance.now()};
-  fruits.push(obj);
-}
-
-// physics + rendering
-function updatePhysics(dt){
-  for(let i=fruits.length-1;i>=0;i--){
-    const f = fruits[i];
-    if(f.isHalf){
-      f.vy += 0.45;
-      f.x += f.vx; f.y += f.vy; f.rot += f.vx*0.02;
-      if(performance.now() - f.born > f.life) fruits.splice(i,1);
-      continue;
-    }
-    f.vy += 0.36; f.x += f.vx; f.y += f.vy; f.rot += f.vx*0.01;
-    if(f.y - f.h/2 > areaH + 50) fruits.splice(i,1);
-  }
-  for(let i=particles.length-1;i>=0;i--){
-    const p = particles[i]; p.vy += 0.15; p.x += p.vx; p.y += p.vy;
-    if(performance.now() - p.born > p.life) particles.splice(i,1);
-  }
-}
-
-function drawAll(){
-  ctx.clearRect(0,0,areaW,areaH);
-  for(const f of fruits){
-    ctx.save(); ctx.translate(f.x,f.y); ctx.rotate(f.rot);
-    if(f.img && !f.isHalf){
-      ctx.drawImage(f.img, -f.w/2, -f.h/2, f.w, f.h);
-    } else if(f.img && f.isHalf){
-      ctx.drawImage(f.img, -f.w/2, -f.h/2, f.w, f.h);
-    } else {
-      ctx.fillStyle = '#f97316'; ctx.beginPath(); ctx.ellipse(0,0,f.w/2,f.h/2,0,0,Math.PI*2); ctx.fill();
-    }
-    ctx.restore();
-  }
-
-  fx.clearRect(0,0,areaW,areaH);
-  for(const p of particles){
-    const age = (performance.now() - p.born) / p.life; fx.globalAlpha = Math.max(0,1-age);
-    fx.fillStyle = p.color; fx.beginPath(); fx.arc(p.x,p.y,p.r,0,Math.PI*2); fx.fill();
-  }
-  fx.globalAlpha = 1;
-  if(pointerTrail.length > 1){
-    fx.lineJoin='round'; fx.lineCap='round';
-    for(let i=0;i<pointerTrail.length-1;i++){
-      const a = pointerTrail[i], b = pointerTrail[i+1];
-      const alpha = 1 - i/pointerTrail.length;
-      fx.strokeStyle = `rgba(34,197,94,${alpha})`;
-      fx.lineWidth = 12 * alpha;
-      fx.beginPath(); fx.moveTo(a.x,a.y); fx.lineTo(b.x,b.y); fx.stroke();
-    }
-  }
-}
-
-function segmentIntersectsRect(a,b,rect){
-  const minX = Math.min(a.x,b.x), maxX = Math.max(a.x,b.x);
-  const minY = Math.min(a.y,b.y), maxY = Math.max(a.y,b.y);
-  if(maxX < rect.left || minX > rect.right || maxY < rect.top || minY > rect.bottom) return false;
-  const steps = 8;
-  for(let i=0;i<=steps;i++){
-    const t = i/steps;
-    const x = a.x + (b.x - a.x) * t;
-    const y = a.y + (b.y - a.y) * t;
-    if(x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) return true;
-  }
-  return false;
-}
-
-function checkSlicesWithTrail(){
-  if(pointerTrail.length < 2) return;
-  for(let s=0;s<pointerTrail.length-1;s++){
-    const p1 = pointerTrail[s], p2 = pointerTrail[s+1];
-    for(let i=fruits.length-1;i>=0;i--){
-      const f = fruits[i];
-      if(f.sliced) continue;
-      const rect = { left: f.x - f.w/2, right: f.x + f.w/2, top: f.y - f.h/2, bottom: f.y + f.h/2 };
-      if(segmentIntersectsRect(p1,p2,rect)){
-        sliceFruit(f);
-      }
-    }
-  }
-}
-
-function sliceFruit(f){
-  if(f.sliced) return;
-  f.sliced = true;
-  if(f.isBomb){
-    lives = Math.max(0, lives-1);
-    spawnParticles(f.x,f.y, '#ff4d4d', 18);
-    shakeScreen();
-    if(lives <= 0){ endGame(); }
-    updateHUD();
-  } else {
-    score += 10; coins += 1;
-    spawnParticles(f.x,f.y, '#ffd54d', 12);
-    createHalves(f);
-    updateHUD();
-  }
-  const idx = fruits.indexOf(f); if(idx>=0) fruits.splice(idx,1);
-}
-
-function createHalves(f){
-  const left = {
-    img: f.img, x: f.x - (f.w*0.18), y: f.y, w: f.w*0.6, h: f.h*0.6,
-    vx: f.vx - 2.4, vy: f.vy*0.2 - 2.6, rot: f.rot - 0.4, isHalf:true, born:performance.now(), life:1000
-  };
-  const right = {
-    img: f.img, x: f.x + (f.w*0.18), y: f.y, w: f.w*0.6, h: f.h*0.6,
-    vx: f.vx + 2.4, vy: f.vy*0.2 - 2.6, rot: f.rot + 0.4, isHalf:true, born:performance.now(), life:1000
-  };
-  fruits.push(left, right);
-}
-
-function spawnParticles(cx,cy,color,count=12){
-  for(let i=0;i<count;i++){
-    particles.push({ x:cx + (Math.random()*10-5), y:cy + (Math.random()*10-5), vx:Math.random()*6-3, vy:Math.random()*-8-1, r:Math.random()*3+2, color, born:performance.now(), life:500 + Math.random()*600 });
-  }
-}
-
-function shakeScreen(){
-  const el = document.getElementById('gameWrapper');
-  el.style.transition = 'transform 100ms';
-  el.style.transform = `translate(${Math.random()*10-5}px,${Math.random()*6-3}px)`;
-  setTimeout(()=>el.style.transform = '',120);
-}
-
-// main loop
-let last = performance.now();
-function loop(now){
-  const dt = now - last; last = now;
-  if(running && !paused){
-    updatePhysics(dt);
-    checkSlicesWithTrail();
-  }
-  drawAll();
-  requestAnimationFrame(loop);
-}
-requestAnimationFrame(loop);
-
-// pointer events
+/* pointer handling */
 let pointerDown = false;
-document.addEventListener('pointerdown', e => {
-  pointerDown = true;
-  const rect = gameCanvas.getBoundingClientRect();
-  const x = e.clientX - rect.left, y = e.clientY - rect.top;
-  pointerTrail = [{x,y,t:Date.now()}];
-});
-document.addEventListener('pointermove', e => {
-  if(!pointerDown || !running || paused) return;
-  const rect = gameCanvas.getBoundingClientRect();
-  const x = e.clientX - rect.left, y = e.clientY - rect.top;
-  pointerTrail.push({x,y,t:Date.now()});
-  if(pointerTrail.length > MAX_TRAIL) pointerTrail.shift();
-});
-document.addEventListener('pointerup', ()=>{ pointerDown = false; pointerTrail = []; });
+window.addEventListener('pointerdown', e=>{ pointerDown = true; addBladePoint(e.clientX,e.clientY); });
+window.addEventListener('pointermove', e=>{ if (pointerDown) addBladePoint(e.clientX,e.clientY); checkHits(e.clientX,e.clientY); });
+window.addEventListener('pointerup', e=>{ pointerDown = false; bladePoints = []; });
+window.addEventListener('pointercancel', ()=>{ pointerDown = false; bladePoints = []; });
 
-// controls & game flow
-function startGame(){
-  if(running) return;
-  running = true; paused = false;
-  startBtn.disabled = true; bigStart.style.display = 'none';
-  // spawn faster depending on score:
-  spawnTimer = setInterval(spawnFruit, Math.max(300, 800 - Math.floor(score/50)*20));
-  log('Game started');
+/* ===== LOADING / EMOJI SPAWN WHILE LOADING ===== */
+let emojiTimer = null;
+function spawnEmoji(){
+  if (!loadingOverlay || !emojiStage) return;
+  if (emojiStage.children.length >= MAX_EMOJI) return;
+  const e = document.createElement('div');
+  e.className = 'emoji';
+  e.style.fontSize = EMOJI_SIZE + 'px';
+  // random emoji
+  e.textContent = EMOJI_CHOICE[Math.floor(Math.random()*EMOJI_CHOICE.length)];
+  // random horizontal position and start near bottom so it floats up
+  const rw = gameArea.getBoundingClientRect().width;
+  const x = Math.max(8, Math.random()*(rw - 60));
+  const y = gameArea.getBoundingClientRect().height - 90;
+  e.style.left = x + 'px';
+  e.style.top = y + 'px';
+  // add gentle up floating animation using JS
+  emojiStage.appendChild(e);
+  // animate: float up and wobble
+  const start = Date.now();
+  const duration = 4200 + Math.random()*1800;
+  function tick(){
+    const t = (Date.now()-start)/duration;
+    if (t>=1){ e.remove(); return; }
+    // easing
+    const yy = y - (Math.sin(t*Math.PI)*0.6 + t*0.8) * (gameArea.getBoundingClientRect().height*0.6);
+    const angle = Math.sin(t*10 + Math.random()) * 18;
+    e.style.top = yy + 'px';
+    e.style.transform = `rotate(${angle}deg)`;
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
 }
-function pauseGame(){ paused = !paused; pauseBtn.textContent = paused ? 'Resume' : 'Pause'; }
-function restartGame(){ running=false; paused=false; clearInterval(spawnTimer); spawnTimer=null; fruits=[]; particles=[]; pointerTrail=[]; score=0; lives=3; coins=0; level=1; updateHUD(); bigStart.style.display='block'; startBtn.disabled=false; gameOverOverlay.style.display='none'; log('Restarted'); }
-function endGame(){
-  running=false; paused=false; clearInterval(spawnTimer); spawnTimer=null;
-  goScore.textContent = score;
-  const best = Math.max(Number(localStorage.getItem('fc_best')||0), score);
-  localStorage.setItem('fc_best', best);
-  goBest.textContent = best;
-  gameOverOverlay.style.display = 'flex';
+
+/* detect hits on emoji stage */
+function checkHits(clientX, clientY){
+  if (!pointerDown) return;
+  // convert to stage coordinates
+  const r = emojiStage.getBoundingClientRect();
+  const x = clientX - r.left, y = clientY - r.top;
+  // query emoji elements under the pointer
+  const list = Array.from(emojiStage.children);
+  for (const el of list){
+    const rect = el.getBoundingClientRect();
+    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom){
+      // slice it
+      sliceEmoji(el);
+    }
+  }
+}
+
+/* slice animation for emoji element */
+function sliceEmoji(el){
+  if (!el || el.dataset.sliced) return;
+  el.dataset.sliced = '1';
+  const rect = el.getBoundingClientRect();
+  // two clones representing halves
+  const halfA = el.cloneNode(true);
+  const halfB = el.cloneNode(true);
+  halfA.className = 'half';
+  halfB.className = 'half';
+  document.body.appendChild(halfA);
+  document.body.appendChild(halfB);
+  // position halves at same spot
+  halfA.style.left = rect.left + 'px'; halfA.style.top = rect.top + 'px';
+  halfB.style.left = rect.left + 'px'; halfB.style.top = rect.top + 'px';
+  halfA.style.transformOrigin = 'left center'; halfB.style.transformOrigin = 'right center';
+  // hide original
+  el.style.transition = 'opacity .12s'; el.style.opacity = 0;
+  // animate split
+  requestAnimationFrame(()=>{
+    halfA.style.transition = 'transform 820ms cubic-bezier(.2,.9,.3,1), opacity 820ms';
+    halfB.style.transition = 'transform 820ms cubic-bezier(.2,.9,.3,1), opacity 820ms';
+    halfA.style.transform = `translate(${-40 - (Math.random()*30)}px, ${40 + Math.random()*40}px) rotate(${ -25 - Math.random()*40 }deg)`;
+    halfB.style.transform = `translate(${40 + (Math.random()*30)}px, ${40 + Math.random()*40}px) rotate(${ 25 + Math.random()*40 }deg)`;
+    halfA.style.opacity = 0; halfB.style.opacity = 0;
+  });
+  // cleanup
+  setTimeout(()=>{ try{ el.remove(); }catch(e){} try{ halfA.remove(); halfB.remove(); }catch(e){} },900);
+  // score pop
+  showScorePop('+1', rect.left + rect.width/2, rect.top + rect.height/2);
+  score += 1; scoreEl.textContent = score;
+}
+
+/* small floating score popup */
+function showScorePop(text, x, y){
+  scorePop.textContent = text;
+  scorePop.style.left = (x + 6) + 'px';
+  scorePop.style.top = (y - 8) + 'px';
+  scorePop.style.display = 'block'; scorePop.style.opacity = 1;
+  scorePop.style.transform = 'translateY(0)';
+  setTimeout(()=>{ scorePop.style.transition = 'all 720ms ease'; scorePop.style.opacity = 0; scorePop.style.transform = 'translateY(-20px)'; },80);
+  setTimeout(()=>{ scorePop.style.display = 'none'; scorePop.style.transition = ''; },900);
+}
+
+/* ===== PRELOAD IMAGES (with robust fallback) ===== */
+function preloadAll(list, onProgress){
+  return new Promise(resolve=>{
+    let total = list.length, done = 0;
+    // attempt to load from IMG_PATH; if any fail, we still continue
+    function tryLoad(name){
+      const img = new Image();
+      img.onload = ()=>{ loadedImages[name] = img; done++; onProgress(done,total,name,true); if (done===total) resolve(); };
+      img.onerror = ()=>{ console.warn('[preload] failed', name); done++; onProgress(done,total,name,false); if (done===total) resolve(); };
+      img.src = IMG_PATH + name;
+      // add cache-busting small delay if browser blocks; but keep src straightforward
+    }
+    // start all loads
+    for (const nm of list) tryLoad(nm);
+  });
+}
+
+/* progress callback */
+function onPreloadProgress(done,total,name,ok){
+  progressText.textContent = `Loading images... ${done} / ${total} ${ok?('(ok)'):('(failed)')}`;
+  bar.style.width = `${Math.round((done/total)*100)}%`;
+}
+
+/* start emoji spawning and allow slicing while loading */
+function startLoadingPhase(){
+  // spawn emoji periodically
+  emojiTimer = setInterval(spawnEmoji, EMOJI_SPAWN_INTERVAL);
+  // also spawn some immediately
+  for (let i=0;i<3;i++) setTimeout(spawnEmoji, i*220);
+}
+
+/* stop loading phase */
+function stopLoadingPhase(){
+  clearInterval(emojiTimer); emojiTimer = null;
+  // remove remaining emoji
+  emojiStage.querySelectorAll('.emoji').forEach(e=>e.remove());
+}
+
+/* when preload finished */
+function onPreloadDone(){
+  stopLoadingPhase();
+  // hide overlay and show start
+  loadingOverlay.style.display = 'none';
   bigStart.style.display = 'block';
-  log('Game over', score);
+  // small auto-start optional: we won't auto-start; show bigStart
 }
-function updateHUD(){ scoreEl.textContent = score; livesEl.textContent = lives; coinsEl.textContent = coins; levelEl.textContent = level; }
 
-// UI wiring
-startBtn.addEventListener('click', startGame);
-bigStart.addEventListener('click', startGame);
-pauseBtn.addEventListener('click', pauseGame);
-restartBtn.addEventListener('click', restartGame);
-goRestart.addEventListener('click', ()=>{ gameOverOverlay.style.display='none'; restartGame(); updateHUD();});
-toggleConsole.addEventListener('click', ()=>{ consoleBox.style.display = consoleBox.style.display === 'block' ? 'none' : 'block'; });
+/* ===== HITCH: allow slicing emojis during loading (pointer checks already done) ===== */
 
-// init: resize + preload
-async function init(){
-  resize();
-  // preload but handle errors gracefully
-  try{
-    await preloadAll(3);
-  }catch(e){ log('preload error', e && e.message ? e.message : e); }
-  loaderOverlay.style.display = 'none';
-  startBtn.disabled = false; bigStart.style.display = 'block';
-  updateHUD();
-  log('Init done. images loaded:', imageBitmapCache.size, 'failed:', failed.join(','));
+/* ===== UI wiring ===== */
+bigStart.addEventListener('click', ()=>{ startGame(); bigStart.style.display = 'none'; });
+startBtn.addEventListener('click', ()=>{ startGame(); });
+pauseBtn.addEventListener('click', ()=>{ pauseGame(); });
+restartBtn.addEventListener('click', ()=>{ restartGame(); });
+shopBtn.addEventListener('click', ()=>{ alert('Shop placeholder — implement later'); });
+
+/* game loop placeholders & spawn real fruit later */
+let spawnIntervalId = null;
+function startGame(){
+  if (running) return;
+  running = true;
+  pauseBtn.disabled = false;
+  // start spawn loop (for real game images)
+  spawnIntervalId = setInterval(()=>spawnFruitFromImages(), 900);
+  console.log('[Game] started');
+}
+function pauseGame(){ if (!running) return; running = false; clearInterval(spawnIntervalId); spawnIntervalId = null; pauseBtn.disabled = true; console.log('[Game] paused'); }
+function restartGame(){ stopAll(); score = 0; lives = 3; coins = 0; updateHUD(); startGame(); console.log('[Game] restarted'); }
+function stopAll(){ running = false; clearInterval(spawnIntervalId); spawnIntervalId = null; }
+
+/* spawn placeholder fruits once images ready (we will create real <img> nodes) */
+function spawnFruitFromImages(){
+  if (!running) return;
+  // pick a random image that loaded
+  const names = Object.keys(loadedImages);
+  if (names.length === 0) return;
+  const name = names[Math.floor(Math.random()*names.length)];
+  const img = loadedImages[name];
+  if (!img) return;
+  // create img element positioned at bottom center-ish and animate up
+  const el = document.createElement('img');
+  el.src = img.src;
+  el.style.position = 'absolute';
+  el.style.width = '84px';
+  el.style.height = 'auto';
+  el.style.zIndex = 180;
+  el.style.left = (20 + Math.random()*(gameArea.getBoundingClientRect().width - 120)) + 'px';
+  // start from bottom
+  el.style.top = (gameArea.getBoundingClientRect().height - 60) + 'px';
+  el.draggable = false;
+  gameArea.appendChild(el);
+  // animate flight: move up then fall
+  const start = Date.now();
+  const dur = 3500 + Math.random()*900;
+  const sx = parseFloat(el.style.left);
+  const sy = parseFloat(el.style.top);
+  const vx = (Math.random()-0.5) * 140; // lateral
+  function tick(){
+    const t = (Date.now() - start)/dur;
+    if (t >= 1){ el.remove(); return; }
+    // simple throw arc: y = sy - vy*t*dur + gravity * t^2  (we simulate)
+    const progress = t;
+    // vertical simple ease up then down
+    const h = Math.sin(Math.PI*progress) * (gameArea.getBoundingClientRect().height*0.55);
+    el.style.top = (sy - h) + 'px';
+    el.style.left = (sx + vx * progress) + 'px';
+    // rotate a bit
+    el.style.transform = `rotate(${(progress*360) % 360}deg)`;
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+
+  // allow slicing via pointer detection: check on pointermove we already call checkHits for emojiStage, but real images are in gameArea
+  // We'll mark it for detection by attaching dataset
+  el.dataset.fruit = name;
+  // when sliced by blade, we will detect via global checkHitsOnGameArea -> implemented below
+}
+
+/* detect hits on images inside gameArea */
+function checkHitsOnImages(clientX, clientY){
+  if (!pointerDown) return;
+  const list = Array.from(gameArea.querySelectorAll('img'));
+  for (const el of list){
+    const rect = el.getBoundingClientRect();
+    if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom){
+      // sliced
+      sliceImageFruit(el);
+    }
+  }
+}
+
+/* slicing for image fruit -> create two halves using canvas cropping (fast) */
+function sliceImageFruit(imgEl){
+  if (!imgEl || imgEl.dataset.sliced) return;
+  imgEl.dataset.sliced = '1';
+  const rect = imgEl.getBoundingClientRect();
+  // create canvas to split image
+  const canvasA = document.createElement('canvas');
+  const canvasB = document.createElement('canvas');
+  const w = rect.width, h = rect.height;
+  canvasA.width = canvasB.width = Math.ceil(w/2);
+  canvasA.height = canvasB.height = Math.ceil(h);
+  // draw halves using offscreen image
+  const off = new Image();
+  off.crossOrigin = 'anonymous';
+  off.onload = ()=>{
+    const ax = canvasA.getContext('2d');
+    const bx = canvasB.getContext('2d');
+    // left half
+    ax.drawImage(off, 0, 0, w/2, h, 0, 0, w/2, h);
+    // right half
+    bx.drawImage(off, w/2, 0, w/2, h, 0, 0, w/2, h);
+    // position halves
+    const aEl = document.createElement('img');
+    const bEl = document.createElement('img');
+    aEl.className = 'half'; bEl.className = 'half';
+    aEl.style.width = (w/2) + 'px'; bEl.style.width = (w/2) + 'px';
+    aEl.style.left = rect.left + 'px'; aEl.style.top = rect.top + 'px';
+    bEl.style.left = (rect.left + w/2) + 'px'; bEl.style.top = rect.top + 'px';
+    // set src from canvas
+    aEl.src = canvasA.toDataURL(); bEl.src = canvasB.toDataURL();
+    document.body.appendChild(aEl); document.body.appendChild(bEl);
+    // animate halves
+    requestAnimationFrame(()=>{
+      aEl.style.transition = 'transform 700ms ease, opacity 700ms';
+      bEl.style.transition = 'transform 700ms ease, opacity 700ms';
+      aEl.style.transform = `translate(${-80}px, ${120}px) rotate(-45deg)`;
+      bEl.style.transform = `translate(${80}px, ${120}px) rotate(45deg)`;
+      aEl.style.opacity = bEl.style.opacity = 0;
+    });
+    setTimeout(()=>{ try{ aEl.remove(); bEl.remove(); } catch(e){} },780);
+  };
+  off.onerror = ()=>{ /* fallback: just remove */ };
+  off.src = imgEl.src;
+  // remove original
+  imgEl.remove();
+  // update score
+  score += 2;
+  scoreEl.textContent = score;
+  // score pop
+  showScorePop('+2', rect.left + w/2, rect.top + h/2);
+}
+
+/* override pointermove to also check images */
+window.addEventListener('pointermove', e=>{ if (pointerDown) checkHitsOnImages(e.clientX,e.clientY); });
+
+/* ===== RUN PRELOAD THEN SHOW START ===== */
+function init(){
+  // show progress initial
+  progressText.textContent = `Loading images... 0 / ${IMAGES.length}`;
+  bar.style.width = '0%';
+  // start emoji loading stage spawn
+  startLoadingPhase();
+  // preload
+  preloadAll(IMAGES, onPreloadProgress).then(()=>{ console.log('[preload] done'); onPreloadDone(); });
+  // wire big start hidden initially
+  bigStart.style.display = 'none';
+  // resize canvas relative to gameArea
+  setTimeout(resizeCanvas,80);
 }
 init();
 
-// expose debug
-window.FruitCut = { start:startGame, pause:pauseGame, restart:restartGame, state: ()=>({running,score,lives}) };
-</script>
-</body>
-  </html>
+/* small helper: preload wrapper with onProgress hook implemented earlier */
+function preloadAll(list, progressCb){
+  return new Promise(resolve=>{
+    let done=0, total=list.length;
+    progressCb(done,total,'start',true);
+    list.forEach(name=>{
+      const img = new Image();
+      img.onload = ()=>{ loadedImages[name] = img; 
