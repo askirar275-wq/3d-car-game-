@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Robust AutoStart + Eruda</title>
+<title>Fruit Cut — Robust Fallback Build</title>
 <style>
   :root{ --btn:#111; --btnHover:#333; --accent:#22c55e; }
   body{font-family:Inter,system-ui,Segoe UI,Roboto,Arial,Helvetica;margin:12px;background:#f4f7fb;color:#111}
@@ -14,20 +14,20 @@
   #gameWrapper{position:relative;height:520px;border-radius:12px;overflow:hidden;border:1px solid rgba(0,0,0,0.06);background-color:#e9e6e1}
   #gameArea{position:absolute;inset:0;touch-action:none;overflow:visible}
   canvas{position:absolute;inset:0;pointer-events:none}
-  .fruit{position:absolute;will-change:transform;z-index:600}
-  img.fruit-img{display:block;pointer-events:none}
+  .fruit{position:absolute;will-change:transform;z-index:600;pointer-events:none;touch-action:none}
+  img.fruit-img{display:block;pointer-events:none;user-select:none}
   .controls{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
   button{padding:8px 12px;border-radius:8px;border:0;background:var(--btn);color:#fff;cursor:pointer;font-weight:600}
   .ghost{background:#fff;color:#111;border:1px solid #e6e6e6;padding:8px 12px;border-radius:8px}
-  .debugBox{position:fixed;right:12px;top:12px;z-index:99999;background:rgba(0,0,0,0.85);color:#fff;padding:10px;max-width:36%;font-size:12px;border-radius:8px;line-height:1.25;max-height:60vh;overflow:auto;display:none}
+  .debugBox{position:fixed;right:12px;top:12px;z-index:99999;background:rgba(0,0,0,0.85);color:#fff;padding:10px;max-width:360px;font-size:12px;border-radius:8px;line-height:1.25;max-height:60vh;overflow:auto;display:block}
   .debugLine{font-family:monospace;font-size:12px;margin:2px 0}
   #bigStart{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:200;background:rgba(0,0,0,0.85);color:#fff;padding:16px 22px;border-radius:10px;cursor:pointer;display:none}
-  @media (max-width:700px){ #gameWrapper{height:420px} .debugBox{display:block;left:6px;right:6px;max-width:unset} }
+  @media (max-width:700px){ #gameWrapper{height:420px} .debugBox{left:6px;right:6px;max-width:unset} }
 </style>
 </head>
 <body>
 <div class="container">
-  <h1>🍉 Fruit Cut — Robust AutoStart</h1>
+  <h1>🍉 Fruit Cut — Robust Fallback</h1>
 
   <div class="hud">
     <div class="stat">Score: <strong id="scoreEl">0</strong></div>
@@ -48,42 +48,42 @@
     <button id="startBtn" class="ghost">Start</button>
     <button id="pauseBtn" class="ghost" disabled>Pause</button>
     <button id="restartBtn" class="ghost">Restart</button>
-    <button id="consoleToggle" class="ghost">Toggle Console</button>
+    <button id="toggleConsole" class="ghost">Toggle Console</button>
   </div>
 
-  <p style="color:#666;margin-top:12px">If game doesn't auto-start, open the console box (Toggle Console) and paste its top lines here.</p>
+  <p style="color:#666;margin-top:12px">If game doesn't auto-start, open the console box (Toggle Console) and paste top lines here.</p>
 </div>
 
 <div id="debug" class="debugBox"></div>
 
-<!-- try to load eruda safely (non-blocking) -->
 <script>
+/* Robust single-file runner with image fallback (emoji) */
 (function(){
-  try{
-    const s=document.createElement('script');
-    s.src='https://cdn.jsdelivr.net/npm/eruda';
-    s.onload=function(){ try{ eruda.init(); console.log('eruda loaded'); }catch(e){ console.warn('eruda init failed',e); } };
-    s.onerror=function(){ console.warn('eruda failed to load'); };
-    document.head.appendChild(s);
-  }catch(e){ console.warn('eruda injection error', e); }
-})();
-</script>
-
-<script>
-/* Robust single-file game runner.
-   - Auto-start fallback
-   - On-screen debug + console logging
-   - Defensive guards for missing images
-   - Smaller/slower bottom spawn default
-*/
-
-(function(){
-  // debug UI
   const debugBox = document.getElementById('debug');
-  function dbg(msg, lvl='log'){ const time=new Date().toLocaleTimeString(); const d=document.createElement('div'); d.className='debugLine'; d.textContent='['+time+'] '+msg; if(lvl==='error') d.style.color='#ffb3b3'; debugBox.appendChild(d); while(debugBox.childElementCount>140) debugBox.removeChild(debugBox.firstChild); console[lvl] ? console[lvl]('[FruitCut]',msg) : console.log('[FruitCut]',msg); }
-  document.getElementById('consoleToggle').addEventListener('click', ()=> { debugBox.style.display = debugBox.style.display==='none' ? 'block' : 'none'; });
+  function dbg(msg, level='log'){
+    const time=new Date().toLocaleTimeString();
+    const d=document.createElement('div'); d.className='debugLine'; d.textContent='['+time+'] '+msg;
+    if(level==='error') d.style.color='#ffbbbb';
+    debugBox.appendChild(d);
+    while(debugBox.childElementCount>150) debugBox.removeChild(debugBox.firstChild);
+    (console[level]||console.log)('[FruitCut]',msg);
+  }
+  document.getElementById('toggleConsole').addEventListener('click', ()=> {
+    debugBox.style.display = debugBox.style.display === 'none' ? 'block' : 'none';
+  });
 
-  // dom refs
+  // attempt to load eruda (non-blocking)
+  (function(){
+    try{
+      const s=document.createElement('script');
+      s.src='https://cdn.jsdelivr.net/npm/eruda';
+      s.onload=function(){ try{ eruda.init(); dbg('eruda loaded'); }catch(e){ dbg('eruda init fail: '+e,'error'); } };
+      s.onerror=function(){ dbg('eruda failed to load'); };
+      document.head.appendChild(s);
+    }catch(e){ dbg('eruda injection error: '+e,'error'); }
+  })();
+
+  // DOM
   const gameArea = document.getElementById('gameArea');
   const bladeCanvas = document.getElementById('bladeCanvas');
   const splatCanvas = document.getElementById('splatCanvas');
@@ -96,163 +96,215 @@
   const restartBtn = document.getElementById('restartBtn');
   const bigStart = document.getElementById('bigStart');
 
-  if(!gameArea){ dbg('Missing #gameArea - cannot run','error'); debugBox.style.display='block'; return; }
+  if(!gameArea){ dbg('No #gameArea found — abort','error'); return; }
 
   // config
-  const IMAGES = ["apple.png","banana.png","mango.png","orange.png","watermelon.png","strawberry.png","pineapple.png","papaya.png","pomegranate.png"];
-  const BOMB = "bomb.png"; const ALL = IMAGES.concat([BOMB]);
-  const GRAVITY = 0.24, SPAWN_BASE = 1400; let spawnInterval = SPAWN_BASE;
-  const MAX_ACTIVE = 5, MAX_BLADE = 12, PTR_THROTTLE = 28;
-  const COMBO_WINDOW_MS = 700, COMBO_MULT = [1,1.2,1.5,2.0,3.0];
+  const IMAGE_LIST = ["apple.png","banana.png","mango.png","orange.png","watermelon.png","strawberry.png","pineapple.png","papaya.png","pomegranate.png"];
+  const BOMB = "bomb.png";
+  const ALL_IMAGES = IMAGE_LIST.concat([BOMB]);
+  const GRAVITY = 0.18;
+  let SPAWN_INTERVAL = 1300;
+  const MAX_ACTIVE = 6;
 
   // state
-  let score=0, lives=3, coins=0, level=1, running=false, spawnTimer=null;
-  const active = [], POOL=[], JUICE_POOL=[], CACHE={}; let lastSlices=[]; let areaW=480, areaH=520;
+  let score=0, lives=3, coins=0, level=1, running=false;
+  const active=[]; const POOL=[]; const CACHE={};
+  let areaW=480, areaH=520;
   let bladeCtx = bladeCanvas.getContext('2d'), splatCtx = splatCanvas.getContext('2d');
 
-  function resizeAll(){ try{ const r=gameArea.getBoundingClientRect(); areaW=Math.max(1,Math.floor(r.width)); areaH=Math.max(1,Math.floor(r.height)); bladeCanvas.width=areaW; bladeCanvas.height=areaH; splatCanvas.width=areaW; splatCanvas.height=areaH; bladeCtx = bladeCanvas.getContext('2d'); splatCtx = splatCanvas.getContext('2d'); dbg('Area size: '+areaW+'x'+areaH); }catch(e){ dbg('resizeAll err:'+e,'error'); } }
-  window.addEventListener('resize', resizeAll); setTimeout(resizeAll,80);
+  function resizeAll(){ const r=gameArea.getBoundingClientRect(); areaW=Math.max(1,Math.floor(r.width)); areaH=Math.max(1,Math.floor(r.height)); bladeCanvas.width=areaW; bladeCanvas.height=areaH; splatCanvas.width=areaW; splatCanvas.height=areaH; bladeCtx = bladeCanvas.getContext('2d'); splatCtx = splatCanvas.getContext('2d'); dbg('Area size: '+areaW+'x'+areaH); }
+  window.addEventListener('resize', resizeAll); setTimeout(resizeAll,60);
 
-  // preload with timeout
-  async function preloadAll(timeoutMs=2000){
-    dbg('preloading images (timeout '+timeoutMs+'ms)...');
-    const tasks = ALL.map(name => new Promise(res=>{
+  // preload with timeout; but if images missing we fallback
+  async function preload(timeoutMs=1200){
+    dbg('Preloading images (timeout '+timeoutMs+'ms)...');
+    const promises = ALL_IMAGES.map(name => new Promise(res=>{
       try{
-        const img = new Image();
-        img.onload = async ()=> { try{ if(img.decode) await img.decode(); }catch(e){} CACHE[name]=img; dbg('loaded '+name); res({name,ok:true}); };
-        img.onerror = ()=> { dbg('img load failed: '+name); res({name,ok:false}); };
+        const img=new Image();
+        img.onload = ()=> { CACHE[name]=img; dbg('loaded '+name); res({name,ok:true}); };
+        img.onerror = ()=> { dbg('failed: '+name); res({name,ok:false}); };
         img.src = 'images/' + name;
-      }catch(e){ dbg('preload err: '+e,'error'); res({name,ok:false}); }
+      }catch(e){ dbg('preload err '+name+': '+e,'error'); res({name,ok:false}); }
     }));
-    const allPromise = Promise.all(tasks);
-    const timeout = new Promise(r=>setTimeout(()=>r('__timeout__'), timeoutMs));
-    const res = await Promise.race([allPromise, timeout]);
-    if(res === '__timeout__'){ dbg('preload timed out, continuing with available images'); try{ await Promise.all(tasks); }catch(e){} }
-    else dbg('preload done');
+    const allP = Promise.all(promises);
+    const timed = new Promise(r=>setTimeout(()=>r('__timeout__'), timeoutMs));
+    const res = await Promise.race([allP, timed]);
+    if(res === '__timeout__'){ dbg('preload timed out — continuing'); try{ await allP; }catch(e){} }
+    dbg('Preload finished');
   }
 
-  // pools
-  function makeFruitEl(){ const el=document.createElement('div'); el.className='fruit'; el.style.position='absolute'; const img=document.createElement('img'); img.className='fruit-img'; img.draggable=false; el.appendChild(img); return el; }
-  function acquireFruit(){ return POOL.length ? POOL.pop() : makeFruitEl(); }
-  function releaseFruit(el){ try{ const img = el.querySelector('img'); if(img) img.src=''; if(el.parentNode) el.parentNode.removeChild(el); POOL.push(el);}catch(e){ dbg('releaseFruit err:'+e,'error'); } }
-  function makeJuice(){ const j=document.createElement('div'); j.style.position='absolute'; j.style.pointerEvents='none'; j.style.zIndex=950; j.style.borderRadius='50%'; return j; }
-  function acquireJuice(){ return JUICE_POOL.length ? JUICE_POOL.pop() : makeJuice(); }
-  function releaseJuice(j){ if(j.parentNode) j.parentNode.removeChild(j); JUICE_POOL.push(j); }
+  // pool helpers
+  function makeEl(){ const el=document.createElement('div'); el.className='fruit'; el.style.position='absolute'; const img=document.createElement('img'); img.className='fruit-img'; img.draggable=false; el.appendChild(img); return el; }
+  function acquire(){ return POOL.length?POOL.pop():makeEl(); }
+  function release(el){ try{ const img = el.querySelector('img'); if(img) img.src=''; if(el.parentNode) el.parentNode.removeChild(el); POOL.push(el); }catch(e){ dbg('release error: '+e,'error'); } }
 
-  const splats=[]; const SPLAT_MAX=48;
-  function addSplat(x,y,color,size,strength=1){ if(splats.length>=SPLAT_MAX) splats.shift(); splats.push({x,y,color,size,alpha:0.95*strength,life:1}); }
-  function drawSplats(){ if(!splatCtx) return; splatCtx.save(); splatCtx.fillStyle='rgba(233,230,225,0.03)'; splatCtx.fillRect(0,0,splatCanvas.width,splatCanvas.height); for(let i=splats.length-1;i>=0;i--){ const s=splats[i]; const g=splatCtx.createRadialGradient(s.x,s.y,0,s.x,s.y,s.size); g.addColorStop(0,`rgba(${s.color.r},${s.color.g},${s.color.b},${s.alpha})`); g.addColorStop(1,`rgba(${s.color.r},${s.color.g},${s.color.b},0)`); splatCtx.fillStyle=g; splatCtx.fillRect(s.x-s.size,s.y-s.size,s.size*2,s.size*2); s.alpha*=0.95; s.life-=0.02; if(s.alpha<0.02||s.life<0) splats.splice(i,1);} splatCtx.restore(); }
-
-  // spawn
-  function spawnOne(tName){
-    try{
-      if(!running) return;
-      if(active.length >= MAX_ACTIVE) return;
-      const name = tName || (Math.random() < 0.92 ? IMAGES[Math.floor(Math.random()*IMAGES.length)] : BOMB);
-      const el = acquireFruit(); const img = el.querySelector('img');
-      const desiredWidth = Math.max(56, Math.min(110, Math.floor(areaW * 0.11)));
-      if(CACHE[name]){ img.src=CACHE[name].src; const nat=CACHE[name]; const ar=(nat.naturalHeight&&nat.naturalWidth)?(nat.naturalHeight/nat.naturalWidth):1; img.style.width=desiredWidth+'px'; img.style.height=Math.round(desiredWidth*ar)+'px'; el.style.width=img.style.width; el.style.height=img.style.height; } else { img.src='images/'+name; img.style.width=desiredWidth+'px'; img.style.height='auto'; el.style.width=img.style.width; el.style.height=img.style.height; }
-      const startX = Math.floor(Math.random() * Math.max(1, areaW - parseFloat(el.style.width) - 40)) + 20;
-      const startY = -24;
-      el.style.left = startX + 'px'; el.style.bottom = startY + 'px'; el.dataset.type = name; gameArea.appendChild(el);
-      const vy = 10 + Math.random()*2.2; const vx = (Math.random()-0.5)*2.0; const rot = (Math.random()-0.5)*18;
-      active.push({el, x:startX, y:startY, vx, vy, rot, type:name, cut:false});
-    }catch(e){ dbg('spawnOne err: '+e,'error'); }
+  // spawn logic (from bottom, slower)
+  function spawn(){
+    if(!running) return;
+    if(active.length >= MAX_ACTIVE) return;
+    const isBomb = Math.random() < 0.07;
+    const name = isBomb ? BOMB : IMAGE_LIST[Math.floor(Math.random()*IMAGE_LIST.length)];
+    const el = acquire(); const img = el.querySelector('img');
+    const desiredW = Math.max(44, Math.min(92, Math.floor(areaW * 0.10)));
+    if(CACHE[name]){ img.src = CACHE[name].src; img.style.width = desiredW + 'px'; img.style.height = 'auto'; el.style.width = img.style.width; el.style.height = img.style.height; }
+    else { // fallback: emoji draw on canvas
+      img.src = ''; img.style.width = desiredW + 'px'; img.style.height = 'auto'; el.style.width = img.style.width; el.style.height = img.style.height;
+      el.dataset.emoji = emojiFor(name);
+    }
+    const x = Math.floor(Math.random() * Math.max(1, areaW - desiredW - 30)) + 15;
+    const y = -30;
+    el.style.left = x + 'px'; el.style.bottom = y + 'px';
+    el.dataset.type = name;
+    gameArea.appendChild(el);
+    const vx = (Math.random()-0.5) * 1.4;
+    const vy = 7.5 + Math.random()*1.6; // slower upward speed
+    const rot = (Math.random()-0.5) * 18;
+    active.push({el, x, y, vx, vy, rot, type:name, cut:false, w:desiredW});
   }
 
-  // animation
+  function emojiFor(name){
+    name = name||'';
+    if(name.includes('apple')) return '🍎';
+    if(name.includes('banana')) return '🍌';
+    if(name.includes('mango')) return '🥭';
+    if(name.includes('orange')) return '🍊';
+    if(name.includes('watermelon')) return '🍉';
+    if(name.includes('strawberry')) return '🍓';
+    if(name.includes('pineapple')) return '🍍';
+    if(name.includes('papaya')) return '🫐';
+    if(name.includes('pomegranate')) return '🔴';
+    if(name.includes('bomb')) return '💣';
+    return '🍇';
+  }
+
+  // animation loop
   let last = performance.now();
   function step(now){
     const dt = Math.min(40, now-last)/16.666; last = now;
-    const floor = areaH - 36;
+    const floor = areaH - 32;
     for(let i=active.length-1;i>=0;i--){
       const f = active[i];
-      f.vy -= GRAVITY*dt;
-      f.x += f.vx*dt;
-      f.y += f.vy*dt;
-      f.rot += f.vx*0.7*dt;
-      if(f.y > floor){ f.y = floor; f.vy = -Math.abs(f.vy)*0.45; }
-      try{ f.el.style.transform = `translate3d(${f.x}px, ${-f.y}px, 0) rotate(${f.rot}deg)`; }catch(e){}
-      if(f.x < -300 || f.x > areaW + 300 || f.y < -600){ try{ releaseFruit(f.el); }catch(e){} active.splice(i,1); }
+      f.vy -= GRAVITY * dt;
+      f.x += f.vx * dt * 1.2;
+      f.y += f.vy * dt * 1.0;
+      f.rot += f.vx * dt * 0.8;
+      if(f.y > floor){ f.y = floor; f.vy = -Math.abs(f.vy)*0.38; }
+      // apply transform
+      const tx = f.x, ty = -f.y;
+      f.el.style.transform = `translate3d(${tx}px, ${ty}px,0) rotate(${f.rot}deg)`;
+      // emoji fallback: if no img src, draw emoji into element
+      const img = f.el.querySelector('img');
+      if(!img.src && f.el.dataset.emoji){
+        if(!f._emojiDrawn){ f.el.textContent = f.el.dataset.emoji; f._emojiDrawn=true; f.el.style.fontSize = Math.max(28, Math.floor(f.w*0.9))+'px'; }
+      }
+      if(f.x < -300 || f.x > areaW + 300 || f.y < -800){ try{ release(f.el);}catch(e){} active.splice(i,1); }
     }
-    try{ drawSplats(); drawBlade(); }catch(e){}
+    drawSplats(); drawBlade();
     requestAnimationFrame(step);
   }
-  requestAnimationFrame(step);
 
-  // blade
-  let bladePoints=[]; function addBladePoint(cx,cy){ const r=gameArea.getBoundingClientRect(); bladePoints.push({x:cx-r.left,y:cy-r.top,t:Date.now()}); if(bladePoints.length>MAX_BLADE) bladePoints.shift(); }
-  function drawBlade(){ if(!bladeCtx) return; bladeCtx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height); if(bladePoints.length<2) return; bladeCtx.lineJoin='round'; bladeCtx.lineCap='round'; for(let i=0;i<bladePoints.length-1;i++){ const a=bladePoints[i], b=bladePoints[i+1]; const age = Date.now()-a.t; const alpha = Math.max(0,1-age/380); bladeCtx.strokeStyle=`rgba(34,197,94,${0.9*alpha})`; bladeCtx.lineWidth=8*alpha+2; bladeCtx.beginPath(); bladeCtx.moveTo(a.x,a.y); bladeCtx.lineTo(b.x,b.y); bladeCtx.stroke(); } }
-
-  // pointer
-  let isDown=false, lastPtr=0, pointerHistory=[];
-  window.addEventListener('pointerdown', e=>{ isDown=true; pointerHistory=[]; addBladePoint(e.clientX,e.clientY); e.preventDefault && e.preventDefault(); }, {passive:false});
-  window.addEventListener('pointermove', e=>{ if(!isDown) return; const now=Date.now(); if(now-lastPtr < PTR_THROTTLE) return; lastPtr=now; addBladePoint(e.clientX,e.clientY); pointerHistory.push({x:e.clientX,y:e.clientY}); if(pointerHistory.length>18) pointerHistory.shift(); if(pointerHistory.length>=2){ const p1=pointerHistory[pointerHistory.length-2], p2=pointerHistory[pointerHistory.length-1]; const snap = Array.from(active); for(const f of snap){ try{ const r = f.el.getBoundingClientRect(); if(lineIntersectsRect(p1,p2,r)) handleSlice(f,p1,p2); }catch(e){} } } }, {passive:false});
-  window.addEventListener('pointerup', ()=>{ isDown=false; pointerHistory=[]; bladePoints=[]; drawBlade(); });
-  window.addEventListener('pointercancel', ()=>{ isDown=false; pointerHistory=[]; bladePoints=[]; drawBlade(); });
-
-  function lineIntersectsRect(p1,p2,rect){ if((p1.x < rect.left && p2.x < rect.left) || (p1.x > rect.right && p2.x > rect.right) || (p1.y < rect.top && p2.y < rect.top) || (p1.y > rect.bottom && p2.y > rect.bottom)) return false; return true; }
-
-  function juiceColorFor(name){
-    name = (name||'').toLowerCase();
-    if(name.includes('apple')) return {r:220,g:50,b:60};
-    if(name.includes('banana')) return {r:240,g:210,b:60};
-    if(name.includes('orange')) return {r:245,g:140,b:40};
-    if(name.includes('strawberry')) return {r:230,g:80,b:90};
-    if(name.includes('watermelon')) return {r:250,g:100,b:120};
-    if(name.includes('mango')) return {r:255,g:160,b:40};
-    if(name.includes('papaya')) return {r:250,g:140,b:60};
-    if(name.includes('pineapple')) return {r:245,g:180,b:70};
-    if(name.includes('pomegranate')) return {r:190,g:20,b:30};
-    return {r:240,g:120,b:100};
+  function drawSplats(){ if(!splatCtx) return; // fading overlay to simulate juice
+    splatCtx.clearRect(0,0,splatCanvas.width,splatCanvas.height);
   }
 
-  // handle slice
-  function handleSlice(f,p1,p2){
-    try{
-      if(!f || f.cut) return; f.cut=true;
-      const type = f.type || (f.el && f.el.dataset && f.el.dataset.type);
-      if(type === BOMB){ lives = Math.max(0,lives-1); dbg('Bomb sliced. lives=' + lives, 'error'); removeFruit(f); updateHUD(); saveStateDebounced(); if(lives<=0) endGame(); return; }
-      const rect = f.el.getBoundingClientRect(); const cx = rect.left + rect.width/2 - gameArea.getBoundingClientRect().left; const cy = rect.top + rect.height/2 - gameArea.getBoundingClientRect().top;
-      const color = juiceColorFor(type); addSplat(cx + (Math.random()-0.5)*18, cy + (Math.random()-0.5)*12, color, 20 + Math.random()*14, 1);
-      addSplat(cx + (Math.random()-0.5)*30, cy + (Math.random()-0.5)*20, color, 8 + Math.random()*10, 0.9);
-
-      const smallCount = 5;
-      for(let i=0;i<smallCount;i++){
-        const j = acquireJuice();
-        const size = 5 + Math.random()*7; j.style.width=size+'px'; j.style.height=size+'px';
-        j.style.left = (cx + (Math.random()-0.5)*12) + 'px'; j.style.top = (cy + (Math.random()-0.5)*12) + 'px';
-        j.style.background = `rgba(${color.r},${color.g},${color.b},${0.9 - Math.random()*0.2})`; gameArea.appendChild(j);
-        (function(juiceEl){ const sx = parseFloat(juiceEl.style.left), sy = parseFloat(juiceEl.style.top); const vx=(Math.random()-0.5)*6, vy = -(2 + Math.random()*6); const start = performance.now(); function anim(now){ const t=(now-start)/1000; const x = sx + vx * t * 60; const y = sy + vy * t * 60 + 0.5 * GRAVITY * t * t * 60; juiceEl.style.left = x + 'px'; juiceEl.style.top = y + 'px'; juiceEl.style.opacity = String(Math.max(0,1 - t*1.4)); if(t < 0.9) requestAnimationFrame(anim); else releaseJuice(juiceEl); } requestAnimationFrame(anim); })(j);
-      }
-
-      const now = Date.now(); lastSlices.push(now); lastSlices = lastSlices.filter(ts => now - ts <= COMBO_WINDOW_MS); const count = lastSlices.length; const idx = Math.min(Math.max(0,count-1),COMBO_MULT.length-1); const mult = COMBO_MULT[idx] || 1; const base = 10; const awarded = Math.round(base * mult); score += awarded; coins += Math.round(2 * mult);
-      updateHUD(); saveStateDebounced();
-      removeFruit(f); createHalves(rect,type);
-    }catch(e){ dbg('handleSlice err:'+e,'error'); }
+  // blade visuals (lightweight)
+  let bladePoints=[];
+  function addBladePoint(cx,cy){ const r=gameArea.getBoundingClientRect(); bladePoints.push({x:cx-r.left,y:cy-r.top,t:Date.now()}); if(bladePoints.length>12) bladePoints.shift(); }
+  function drawBlade(){
+    if(!bladeCtx) return; bladeCtx.clearRect(0,0,bladeCanvas.width,bladeCanvas.height);
+    if(bladePoints.length<2) return;
+    bladeCtx.lineJoin = 'round'; bladeCtx.lineCap='round';
+    for(let i=0;i<bladePoints.length-1;i++){
+      const a=bladePoints[i], b=bladePoints[i+1]; const age=Date.now()-a.t; const alpha=Math.max(0,1-age/420);
+      bladeCtx.strokeStyle = `rgba(34,197,94,${0.9*alpha})`; bladeCtx.lineWidth = 8*alpha+2; bladeCtx.beginPath(); bladeCtx.moveTo(a.x,a.y); bladeCtx.lineTo(b.x,b.y); bladeCtx.stroke();
+    }
+    bladePoints = bladePoints.filter(p => (Date.now() - p.t) < 520);
   }
 
-  function removeFruit(f){ for(let i=active.length-1;i>=0;i--) if(active[i]===f){ try{ if(active[i].el.parentNode) active[i].el.parentNode.removeChild(active[i].el); }catch(e){} active.splice(i,1); break; } }
+  // pointer handling & slicing
+  let isDown=false; let pointerHistory=[];
+  window.addEventListener('pointerdown', e=>{ isDown=true; pointerHistory=[]; addBladePoint(e.clientX,e.clientY); e.preventDefault && e.preventDefault(); });
+  window.addEventListener('pointermove', e=>{ if(!isDown) return; addBladePoint(e.clientX,e.clientY); pointerHistory.push({x:e.clientX,y:e.clientY}); if(pointerHistory.length>14) pointerHistory.shift(); if(pointerHistory.length>=2){ const p1=pointerHistory[pointerHistory.length-2], p2=pointerHistory[pointerHistory.length-1]; for(const f of active.slice()){ try{ const r = f.el.getBoundingClientRect(); if(lineIntersectsRect(p1,p2,r)) sliceFruit(f); }catch(e){} } } }, {passive:true});
+  window.addEventListener('pointerup', ()=>{ isDown=false; pointerHistory=[]; bladePoints=[]; });
+  window.addEventListener('pointercancel', ()=>{ isDown=false; pointerHistory=[]; bladePoints=[]; });
 
+  function lineIntersectsRect(p1,p2,rect){
+    if((p1.x < rect.left && p2.x < rect.left) || (p1.x > rect.right && p2.x > rect.right) || (p1.y < rect.top && p2.y < rect.top) || (p1.y > rect.bottom && p2.y > rect.bottom)) return false;
+    return true;
+  }
+
+  function sliceFruit(f){
+    if(!f || f.cut) return; f.cut=true;
+    const type = f.type;
+    if(type === BOMB){ lives = Math.max(0, lives-1); dbg('Bomb sliced. lives=' + lives, 'error'); updateHUD(); if(lives<=0){ endGame(); } release(f.el); const idx = active.indexOf(f); if(idx>=0) active.splice(idx,1); return; }
+    // add simple juice effect (splat) and halves simulation
+    const rect = f.el.getBoundingClientRect();
+    createHalves(rect, type);
+    try{ release(f.el); }catch(e){}
+    const idx = active.indexOf(f); if(idx>=0) active.splice(idx,1);
+    score += 10; coins += 1; updateHUD(); dbg('Fruit sliced: '+type);
+  }
+
+  // halves animation (simple)
   function createHalves(rect,type){
     try{
-      const centerX = rect.left + rect.width/2 - gameArea.getBoundingClientRect().left; const centerY = rect.top + rect.height/2 - gameArea.getBoundingClientRect().top;
-      const wrapper = document.createElement('div'); wrapper.style.position='absolute'; wrapper.style.left=(centerX-rect.width/2)+'px'; wrapper.style.bottom = (-(centerY-rect.height/2)) + 'px'; wrapper.style.width = rect.width+'px'; wrapper.style.height = rect.height+'px'; wrapper.style.pointerEvents='none'; wrapper.style.zIndex=980;
+      const cx = rect.left + rect.width/2 - gameArea.getBoundingClientRect().left;
+      const cy = rect.top + rect.height/2 - gameArea.getBoundingClientRect().top;
+      const wrapper = document.createElement('div'); wrapper.style.position='absolute'; wrapper.style.left=(cx-rect.width/2)+'px'; wrapper.style.bottom = (-(cy-rect.height/2))+'px'; wrapper.style.width = rect.width+'px'; wrapper.style.height = rect.height+'px'; wrapper.style.pointerEvents='none'; wrapper.style.zIndex=980;
       const left = document.createElement('div'); left.style.position='absolute'; left.style.left='0'; left.style.top='0'; left.style.width='50%'; left.style.height='100%'; left.style.overflow='hidden';
-      const li = document.createElement('img'); li.src = CACHE[type] ? CACHE[type].src : 'images/'+type; li.style.position='absolute'; li.style.width='200%'; li.style.height='100%'; li.style.left='0'; li.style.top='0'; left.appendChild(li);
       const right = document.createElement('div'); right.style.position='absolute'; right.style.right='0'; right.style.top='0'; right.style.width='50%'; right.style.height='100%'; right.style.overflow='hidden';
-      const ri = document.createElement('img'); ri.src = CACHE[type] ? CACHE[type].src : 'images/'+type; ri.style.position='absolute'; ri.style.width='200%'; ri.style.height='100%'; ri.style.left='-50%'; ri.style.top='0'; right.appendChild(ri);
-      wrapper.appendChild(left); wrapper.appendChild(right); gameArea.appendChild(wrapper);
-      const seed=(Math.random()-0.5)*0.6; let left_vx=-1.8+seed,left_vy=1.6+Math.random()*1.2,left_rot=-20-Math.random()*28; let right_vx=1.9+seed,right_vy=1.9+Math.random()*1.2,right_rot=18+Math.random()*28;
-      const t0 = performance.now();
-      function anim(now){ const dt=(now-t0)/1000; const lx = left_vx * dt * 40; const ly = - (left_vy * dt * 40) + 0.5 * GRAVITY * dt * dt * 40; const rx = right_vx * dt * 40; const ry = - (right_vy * dt * 40) + 0.5 * GRAVITY * dt * dt * 40; left.style.transform = `translate3d(${lx}px, ${ly}px, 0) rotate(${left_rot * dt}deg)`; right.style.transform = `translate3d(${rx}px, ${ry}px, 0) rotate(${right_rot * dt}deg)`; const alpha = Math.max(0,1 - dt * 1.6); left.style.opacity = alpha; right.style.opacity = alpha; if(dt<0.9 && Math.random()<0.12) addSplat(centerX+(Math.random()-0.5)*30, centerY+(Math.random()-0.5)*30+dt*10, juiceColorFor(type), 6+Math.random()*8, 0.6); if(alpha>0.02) requestAnimationFrame(anim); else { if(wrapper.parentNode) wrapper.parentNode.removeChild(wrapper); } }
-      requestAnimationFrame(anim);
-    }catch(e){ dbg('createHalves err:'+e,'error'); }
+      const li = document.createElement('img'); const ri = document.createElement('img');
+      if(CACHE[type]){ li.src = ri.src = CACHE[type].src; }
+      else { li.src = ri.src = ''; left.textContent = right.textContent = emojiFor(type); left.style.fontSize = right.style.fontSize = Math.max(28, Math.floor(rect.width*0.45))+'px'; left.style.display = right.style.display = 'flex'; left.style.alignItems = right.style.alignItems = 'center'; left.style.justifyContent = right.style.justifyContent = 'center'; }
+      li.style.position='absolute'; li.style.left='0'; li.style.width='200%'; li.style.height='100%';
+      ri.style.position='absolute'; ri.style.left='-50%'; ri.style.width='200%'; ri.style.height='100%';
+      left.appendChild(li); right.appendChild(ri); wrapper.appendChild(left); wrapper.appendChild(right);
+      gameArea.appendChild(wrapper);
+      // animate halves
+      const start = performance.now();
+      const leftVx = -1.8 - Math.random()*1.4, leftVy = 1.8 + Math.random()*1.6, leftRot = -20 - Math.random()*40;
+      const rightVx = 1.8 + Math.random()*1.4, rightVy = 2.0 + Math.random()*1.6, rightRot = 20 + Math.random()*40;
+      (function anim(now){
+        const t = (now - start)/1000;
+        left.style.transform = `translate3d(${leftVx * t * 40}px, ${-leftVy * t * 40 + 0.5*GRAVITY*t*t*40}px,0) rotate(${leftRot * t}deg)`;
+        right.style.transform = `translate3d(${rightVx * t * 40}px, ${-rightVy * t * 40 + 0.5*GRAVITY*t*t*40}px,0) rotate(${rightRot * t}deg)`;
+        const alpha = Math.max(0,1 - t*1.4); left.style.opacity = right.style.opacity = alpha;
+        if(alpha > 0.02) requestAnimationFrame(anim);
+        else if(wrapper.parentNode) wrapper.parentNode.removeChild(wrapper);
+      })(performance.now());
+    }catch(e){ dbg('createHalves err: '+e,'error'); }
   }
 
-  // HUD & controls
-  function updateHUD(){ try{ scoreEl.textContent=score; livesEl.textContent=lives; coinsEl.textContent=coins; levelEl.textContent=level; pauseBtn.disabled = !running; }catch(e){} }
-  function startGame(){ if(running) return; running=true; bigStart.style.display='none'; if(spawnTimer) clearInterval(spawnTimer); spawnTimer = setInterval(()=> spawnOne(), spawnInterval); spawnOne(); updateHUD(); dbg('Game started'); }
-  function pauseGame(){ running = !running; if(!running && spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } if(running && !spawnTimer) spawnTimer=setInterval(()=>spawnOne(), spawnInterval); updateHUD(); dbg('Pause toggled: '+running); }
-  function restartGame(){ for(const f of Array.from(active)) try{ if(f.el.parentNode) f.el.parentNode.removeChild(f.el); }catch(e){} active.length=0; score=0; coins=0; lives=3; level=1; running=false; if(spawnTimer){ clearInterval(spawnTimer); spawnTimer=null; } bigStart.style.display='none'; updateHUD(); saveState(); dbg('Restarted'); }
-  function endGame(){ running=false; if(spawnTimer){ clearInterval(spaw
+  // HUD
+  function updateHUD(){ scoreEl.textContent = score; livesEl.textContent = lives; coinsEl.textContent = coins; levelEl.textContent = level; pauseBtn.disabled = !running; }
+
+  function startGame(){
+    if(running) return;
+    running = true; bigStart.style.display='none';
+    if(window._spawnTimer) clearInterval(window._spawnTimer);
+    window._spawnTimer = setInterval(spawn, SPAWN_INTERVAL);
+    spawn(); dbg('Game started');
+  }
+  function pauseGame(){ running = !running; if(!running && window._spawnTimer){ clearInterval(window._spawnTimer); window._spawnTimer = null; } if(running && !window._spawnTimer) window._spawnTimer = setInterval(spawn, SPAWN_INTERVAL); updateHUD(); dbg('Pause toggled: '+running); }
+  function restartGame(){ for(const f of active.slice()){ try{ if(f.el.parentNode) f.el.parentNode.removeChild(f.el);}catch(e){} } active.length=0; score=0; coins=0; lives=3; level=1; running=false; if(window._spawnTimer){ clearInterval(window._spawnTimer); window._spawnTimer=null; } bigStart.style.display='none'; updateHUD(); dbg('Restarted'); }
+  startBtn && startBtn.addEventListener('click', startGame);
+  pauseBtn && pauseBtn.addEventListener('click', pauseGame);
+  restartBtn && restartBtn.addEventListener('click', restartGame);
+  bigStart && bigStart.addEventListener('click', startGame);
+
+  // init
+  (async function init(){
+    dbg('Script start');
+    for(let i=0;i<6;i++) POOL.push(makeEl());
+    try{ await preload(1200); }catch(e){ dbg('preload error','error'); }
+    resizeAll();
+    requestAnimationFrame(step);
+    updateHUD();
+    // auto-start after short delay (ensures debug visible)
+    setTimeout(()=>{ if(!running){ dbg('Auto-start fallback'); startGame(); } }, 120);
+  })();
+
+})();
+</script>
+</body>
+  </html>
