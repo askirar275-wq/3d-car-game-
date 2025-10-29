@@ -447,4 +447,108 @@ canvas{position:absolute;inset:0;z-index:6;pointer-events:none}
     const label = document.createElement('div'); label.style.marginLeft='8px'; label.innerHTML = `<strong>${b.label}</strong><div class="small">Cost: ${b.cost}</div>`;
     left.appendChild(thumb); left.appendChild(label);
     const action = document.createElement('div');
-    const btn = document.createEleme
+    const btn = document.createElement('button'); btn.className='btn';
+    btn.textContent = shopState.selectedBlade === b.id ? 'Selected' : (shopState.purchasedBlades.includes(b.id) ? 'Select' : `Buy ${b.cost}`);
+    if(b.cost === 0 && !shopState.purchasedBlades.includes(b.id)) shopState.purchasedBlades.push(b.id);
+    btn.onclick = ()=>{
+      if(shopState.purchasedBlades.includes(b.id)){ shopState.selectedBlade = b.id; saveShop(); showToast('Blade selected'); }
+      else {
+        if(shopState.coins >= b.cost){ shopState.coins -= b.cost; shopState.purchasedBlades.push(b.id); shopState.selectedBlade = b.id; saveShop(); showToast('Blade purchased'); }
+        else showToast('Not enough coins');
+      }
+      updateShopUI(); updateHUD();
+    };
+    action.appendChild(btn);
+    div.appendChild(left); div.appendChild(action);
+    return div;
+  }
+
+  function openShop(){
+    shopModal.style.display = 'block';
+    updateShopUI();
+  }
+  function closeShopModal(){ shopModal.style.display = 'none'; saveShop(); }
+
+  function updateShopUI(){
+    // backgrounds
+    bgGrid.innerHTML = '';
+    BACKGROUNDS.forEach(bg => bgGrid.appendChild(makeBgCard(bg)));
+    bladeGrid.innerHTML = '';
+    BLADES.forEach(b => bladeGrid.appendChild(makeBladeCard(b)));
+    shopCoins.textContent = shopState.coins;
+    // apply selection visuals
+    applyBackground(shopState.selectedBg);
+  }
+
+  function applyBackground(bgId){
+    const bg = BACKGROUNDS.find(b=>b.id===bgId) || BACKGROUNDS[0];
+    document.getElementById('gameWrapper').style.background = bg.css;
+    shopState.selectedBg = bg.id;
+    saveShop();
+  }
+
+  // map blade data for quick access
+  const BLADES_MAP = {};
+  BLADES.forEach(b=>BLADES_MAP[b.id]=b);
+
+  // === INIT & BINDINGS ===
+  startBtn.addEventListener('click', ()=> startGame(false));
+  bigStart.addEventListener('click', ()=> startGame(false));
+  pauseBtn.addEventListener('click', ()=> pauseGame());
+  restartBtn.addEventListener('click', ()=> restartGame());
+  shopBtn.addEventListener('click', ()=> openShop());
+  closeShop.addEventListener('click', ()=> closeShopModal());
+  goRestart.addEventListener('click', ()=> { gameOver.style.display='none'; restartGame(); });
+
+  // pointer listeners
+  window.addEventListener('pointermove', onPointerMove);
+  window.addEventListener('pointerdown', onPointerMove);
+  window.addEventListener('pointerup', ()=> bladePoints = []);
+
+  // resize on load
+  function init(){
+    resize(); physicsTick();
+    // show loader and start emoji
+    loader.style.display = 'flex'; startEmoji();
+    preloadImages(2400).then(() => {
+      stopEmoji();
+      loader.style.display = 'none';
+      // apply saved shop state / coins
+      coins = shopState.coins || coins;
+      updateHUD();
+      updateShopUI();
+      // auto start after small delay
+      setTimeout(()=>{ if(!running){ startGame(true); } }, 300);
+    });
+  }
+
+  // pointer move handler (defined earlier). Ensure area rect on load
+  function initBindings(){ /* already bound */ }
+
+  // start emoji helper
+  function startEmoji(){ let i=0; loadEmoji.textContent = EMOJIS[0]; if(!window._emojiInterval){ window._emojiInterval = setInterval(()=>{ i=(i+1)%EMOJIS.length; loadEmoji.textContent = EMOJIS[i]; }, 600); } }
+  function stopEmoji(){ if(window._emojiInterval){ clearInterval(window._emojiInterval); window._emojiInterval = null; } }
+
+  // physics & drawing tick loop already defined as physicsTick but need to call update/draw inside
+  function physicsTick(){ if(running && !paused){ update(); draw(); } requestAnimationFrame(physicsTick); }
+
+  // preload wrapper already defined; update loader counts
+  // modify preloadImages to update progress display (done above)
+
+  // Start everything when page load
+  window.addEventListener('load', init);
+
+  // Expose small API for debugging (hidden by default)
+  window.FruitCut = { start: ()=>startGame(false), pause: ()=>pauseGame(), restart: ()=>restartGame(), shop: ()=>openShop() };
+
+  // initial HUD
+  updateHUD();
+
+  // small convenience: ensure shopState default purchases include free items
+  BACKGROUNDS.forEach(b => { if(b.cost===0 && !shopState.purchasedBackgrounds.includes(b.id)) shopState.purchasedBackgrounds.push(b.id); });
+  BLADES.forEach(b => { if(b.cost===0 && !shopState.purchasedBlades.includes(b.id)) shopState.purchasedBlades.push(b.id); });
+
+})();
+</script>
+</body>
+</html>
