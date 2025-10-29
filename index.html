@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Fruit Cut — Fixes: preload, slice, gameover</title>
+<title>Fruit Cut — Fixed Preload & Gameover</title>
 <style>
 :root{--bg:#f4f7fb;--panel:#fff;--accent:#22c55e;--btn:#111}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
@@ -13,8 +13,7 @@ h1{text-align:center;margin:6px 0 8px}
 .hud{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:10px}
 .stat{background:#fff;padding:8px 12px;border-radius:10px;box-shadow:0 8px 22px rgba(0,0,0,0.06);font-weight:700}
 #gameWrapper{position:relative;border-radius:12px;overflow:hidden;background:linear-gradient(180deg,#cfeeff,#f9f7ef);height:68vh;min-height:420px}
-canvas{position:absolute;inset:0;z-index:5;pointer-events:none}
-#gameCanvas{z-index:3}
+canvas{position:absolute;inset:0;z-index:3;pointer-events:none}
 #fxCanvas{z-index:6}
 #loaderOverlay{position:absolute;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;flex-direction:column;background:rgba(255,255,255,0.95)}
 #loaderBar{width:260px;height:12px;background:#eee;border-radius:12px;overflow:hidden;margin-top:10px}
@@ -30,7 +29,7 @@ canvas{position:absolute;inset:0;z-index:5;pointer-events:none}
 </head>
 <body>
   <div class="container">
-    <h1>🍉 Fruit Cut — Fixed (preload / slice / gameover)</h1>
+    <h1>🍉 Fruit Cut — Fixed Preload & Gameover</h1>
     <div class="hud">
       <div class="stat">Score: <span id="score">0</span></div>
       <div class="stat">Lives: <span id="lives">3</span></div>
@@ -74,12 +73,10 @@ canvas{position:absolute;inset:0;z-index:5;pointer-events:none}
   </div>
 
 <script>
-/* Single-file fixed game:
-   - Preload images (concurrency + createImageBitmap)
-   - Improved slice detection (segment vs rect sampling)
-   - Shows Game Over when lives==0
-   - Offline SW registration (inlined blob)
-   Keep your images in /images/ with the names in FRUITS + BOMB.
+/* Updated: preload fix + removed blob-SW registration to avoid GitHub Pages errors.
+   Keep images in images/ folder. Names used (you can add more):
+   apple.png banana.png cantaloupe.png guava.png mango.png orange.png papaya.png
+   pear.png pineapple.png plum.png pomegranate.png strawberry.png watermelon.png bomb.png
 */
 
 const FRUITS = ['apple.png','banana.png','cantaloupe.png','guava.png','mango.png','orange.png','papaya.png','pear.png','pineapple.png','plum.png','pomegranate.png','strawberry.png','watermelon.png'];
@@ -87,7 +84,7 @@ const BOMB = 'bomb.png';
 const IMG_PATH = 'images/';
 const ALL = [...FRUITS, BOMB];
 
-// UI
+// UI elements
 const loaderOverlay = document.getElementById('loaderOverlay');
 const loaderFill = document.getElementById('loaderFill');
 const loaderStatus = document.getElementById('loaderStatus');
@@ -126,12 +123,12 @@ let loaded = 0, failed = [];
 let running = false, paused = false;
 let score = 0, lives = 3, coins = 0, level = 1;
 let spawnTimer = null;
-let fruits = []; // {name,img,x,y,w,h,vx,vy,rot,isBomb,sliced,half,born,life}
+let fruits = [];
 let particles = [];
-let pointerTrail = []; // recent points for blade
+let pointerTrail = [];
 const MAX_TRAIL = 28;
 
-// logging
+// logger
 function log(...args){
   const s = '[FruitCut] ' + args.join(' ');
   console.log(s);
@@ -139,7 +136,7 @@ function log(...args){
   consoleBox.prepend(d);
 }
 
-// preload images with concurrency + createImageBitmap
+// PRELOAD (fixed): fetch -> blob -> cache.put(new Response(blob)) -> createImageBitmap(blob)
 async function preloadAll(concurrency=3){
   loaderStatus.textContent = `0 / ${ALL.length}`;
   const queue = ALL.slice();
@@ -149,24 +146,27 @@ async function preloadAll(concurrency=3){
     while(queue.length){
       const name = queue.shift();
       try{
-        // try cache match
-        const req = new Request(IMG_PATH + name);
-        const cached = await cache.match(req);
-        if(cached){
-          const blob = await cached.blob();
+        const reqUrl = IMG_PATH + name;
+        // try cache first
+        const match = await cache.match(reqUrl);
+        if(match){
+          const blob = await match.blob();
           const bmp = await createImageBitmap(blob);
           imageBitmapCache.set(name, bmp);
           log('cached', name);
-          loaded++; loaderStatus.textContent = `${loaded} / ${ALL.length}`;
-          loaderFill.style.width = (loaded / ALL.length * 100) + '%';
+          loaded++; loaderFill.style.width = (loaded / ALL.length * 100) + '%';
+          loaderStatus.textContent = `${loaded} / ${ALL.length}`;
           continue;
         }
-        // fetch
-        const resp = await fetch(IMG_PATH + name, {cache:'no-store'});
-        if(!resp.ok) throw new Error('HTTP '+resp.status);
+        // fetch remote
+        const resp = await fetch(reqUrl, {cache:'no-store'});
+        if(!resp.ok) throw new Error('HTTP ' + resp.status);
+        // read blob ONCE
         const blob = await resp.blob();
-        // store in cache for offline
-        cache.put(req, resp.clone()).catch(()=>{});
+        // store blob in cache (use new Response from blob)
+        try{
+          await cache.put(reqUrl, new Response(blob, {headers:{'Content-Type': blob.type || 'image/png'}}));
+        }catch(e){ /* cache put may fail on some hosts, ignore */ }
         // decode
         const bmp = await createImageBitmap(blob);
         imageBitmapCache.set(name, bmp);
@@ -185,13 +185,13 @@ async function preloadAll(concurrency=3){
   await Promise.all(workers);
 }
 
-// spawn function: create a fruit object (drawn on canvas)
+// spawn object
 function spawnFruit(){
   if(!running || paused) return;
   const isBomb = Math.random() < 0.08;
   const name = isBomb ? BOMB : FRUITS[Math.floor(Math.random()*FRUITS.length)];
-  const img = imageBitmapCache.get(name);
-  const baseW = Math.max(56, Math.floor(areaW * 0.14));
+  const img = imageBitmapCache.get(name) || null;
+  const baseW = Math.max(56, Math.floor(areaW * 0.16)); // slightly larger
   const scale = Math.random()*0.6 + 0.9;
   const w = Math.floor(baseW * scale);
   const h = img ? Math.floor(w * (img.height / img.width)) : w;
@@ -202,48 +202,34 @@ function spawnFruit(){
   const rot = (Math.random()*40 - 20) * Math.PI/180;
   const obj = {name, img, x, y, w, h, vx, vy, rot, isBomb, sliced:false, born:performance.now()};
   fruits.push(obj);
-  // speed up spawn when score grows (optional)
 }
 
-// physics update
+// physics + rendering
 function updatePhysics(dt){
   for(let i=fruits.length-1;i>=0;i--){
     const f = fruits[i];
-    // halves behave as isHalf
     if(f.isHalf){
       f.vy += 0.45;
       f.x += f.vx; f.y += f.vy; f.rot += f.vx*0.02;
-      // remove after life
       if(performance.now() - f.born > f.life) fruits.splice(i,1);
       continue;
     }
     f.vy += 0.36; f.x += f.vx; f.y += f.vy; f.rot += f.vx*0.01;
-    // remove off bottom
-    if(f.y - f.h/2 > areaH + 50){
-      // miss: no penalty per requirement
-      fruits.splice(i,1);
-    }
+    if(f.y - f.h/2 > areaH + 50) fruits.splice(i,1);
   }
-  // particles update
   for(let i=particles.length-1;i>=0;i--){
-    const p = particles[i];
-    p.vy += 0.15; p.x += p.vx; p.y += p.vy;
+    const p = particles[i]; p.vy += 0.15; p.x += p.vx; p.y += p.vy;
     if(performance.now() - p.born > p.life) particles.splice(i,1);
   }
 }
 
-// draw
 function drawAll(){
   ctx.clearRect(0,0,areaW,areaH);
-  // draw fruits
   for(const f of fruits){
-    ctx.save();
-    ctx.translate(f.x, f.y);
-    ctx.rotate(f.rot);
+    ctx.save(); ctx.translate(f.x,f.y); ctx.rotate(f.rot);
     if(f.img && !f.isHalf){
       ctx.drawImage(f.img, -f.w/2, -f.h/2, f.w, f.h);
     } else if(f.img && f.isHalf){
-      // draw half by clipping left/right: use scale to flip clip
       ctx.drawImage(f.img, -f.w/2, -f.h/2, f.w, f.h);
     } else {
       ctx.fillStyle = '#f97316'; ctx.beginPath(); ctx.ellipse(0,0,f.w/2,f.h/2,0,0,Math.PI*2); ctx.fill();
@@ -251,19 +237,12 @@ function drawAll(){
     ctx.restore();
   }
 
-  // fx canvas: blade trail + particles
   fx.clearRect(0,0,areaW,areaH);
-
-  // particles
   for(const p of particles){
-    const age = (performance.now() - p.born) / p.life;
-    fx.globalAlpha = Math.max(0, 1 - age);
-    fx.fillStyle = p.color;
-    fx.beginPath(); fx.arc(p.x,p.y,p.r,0,Math.PI*2); fx.fill();
+    const age = (performance.now() - p.born) / p.life; fx.globalAlpha = Math.max(0,1-age);
+    fx.fillStyle = p.color; fx.beginPath(); fx.arc(p.x,p.y,p.r,0,Math.PI*2); fx.fill();
   }
   fx.globalAlpha = 1;
-
-  // blade trail
   if(pointerTrail.length > 1){
     fx.lineJoin='round'; fx.lineCap='round';
     for(let i=0;i<pointerTrail.length-1;i++){
@@ -276,13 +255,10 @@ function drawAll(){
   }
 }
 
-// slice detection: use segment-vs-rect sampling for reliability
 function segmentIntersectsRect(a,b,rect){
-  // quick bbox reject
   const minX = Math.min(a.x,b.x), maxX = Math.max(a.x,b.x);
   const minY = Math.min(a.y,b.y), maxY = Math.max(a.y,b.y);
   if(maxX < rect.left || minX > rect.right || maxY < rect.top || minY > rect.bottom) return false;
-  // sample along segment
   const steps = 8;
   for(let i=0;i<=steps;i++){
     const t = i/steps;
@@ -295,18 +271,14 @@ function segmentIntersectsRect(a,b,rect){
 
 function checkSlicesWithTrail(){
   if(pointerTrail.length < 2) return;
-  // iterate segments
   for(let s=0;s<pointerTrail.length-1;s++){
     const p1 = pointerTrail[s], p2 = pointerTrail[s+1];
-    // check each fruit
     for(let i=fruits.length-1;i>=0;i--){
       const f = fruits[i];
       if(f.sliced) continue;
       const rect = { left: f.x - f.w/2, right: f.x + f.w/2, top: f.y - f.h/2, bottom: f.y + f.h/2 };
       if(segmentIntersectsRect(p1,p2,rect)){
-        // slice it
         sliceFruit(f);
-        // remove f from fruits list by marking sliced; sliceFruit removes it
       }
     }
   }
@@ -315,7 +287,6 @@ function checkSlicesWithTrail(){
 function sliceFruit(f){
   if(f.sliced) return;
   f.sliced = true;
-  // bomb logic
   if(f.isBomb){
     lives = Math.max(0, lives-1);
     spawnParticles(f.x,f.y, '#ff4d4d', 18);
@@ -328,13 +299,10 @@ function sliceFruit(f){
     createHalves(f);
     updateHUD();
   }
-  // remove the original
-  const idx = fruits.indexOf(f);
-  if(idx >= 0) fruits.splice(idx,1);
+  const idx = fruits.indexOf(f); if(idx>=0) fruits.splice(idx,1);
 }
 
 function createHalves(f){
-  // push two small half objects (isHalf true) that will be drawn and fall
   const left = {
     img: f.img, x: f.x - (f.w*0.18), y: f.y, w: f.w*0.6, h: f.h*0.6,
     vx: f.vx - 2.4, vy: f.vy*0.2 - 2.6, rot: f.rot - 0.4, isHalf:true, born:performance.now(), life:1000
@@ -359,7 +327,7 @@ function shakeScreen(){
   setTimeout(()=>el.style.transform = '',120);
 }
 
-// game loop
+// main loop
 let last = performance.now();
 function loop(now){
   const dt = now - last; last = now;
@@ -372,7 +340,7 @@ function loop(now){
 }
 requestAnimationFrame(loop);
 
-// pointer handling
+// pointer events
 let pointerDown = false;
 document.addEventListener('pointerdown', e => {
   pointerDown = true;
@@ -389,84 +357,53 @@ document.addEventListener('pointermove', e => {
 });
 document.addEventListener('pointerup', ()=>{ pointerDown = false; pointerTrail = []; });
 
-// spawn interval controls & start/pause/restart/gameover
+// controls & game flow
 function startGame(){
   if(running) return;
   running = true; paused = false;
   startBtn.disabled = true; bigStart.style.display = 'none';
-  spawnTimer = setInterval(spawnFruit, Math.max(350, 900 - Math.floor(score/50)*20));
+  // spawn faster depending on score:
+  spawnTimer = setInterval(spawnFruit, Math.max(300, 800 - Math.floor(score/50)*20));
   log('Game started');
 }
 function pauseGame(){ paused = !paused; pauseBtn.textContent = paused ? 'Resume' : 'Pause'; }
-function restartGame(){ // stop and reset
-  running = false; paused = false;
-  clearInterval(spawnTimer); spawnTimer = null;
-  fruits.forEach(f=>{}); fruits = []; particles = []; pointerTrail = [];
-  score = 0; lives = 3; coins = 0; level = 1;
-  updateHUD();
-  bigStart.style.display = 'block';
-  startBtn.disabled = false;
-  gameOverOverlay.style.display = 'none';
-  log('Restarted');
-}
+function restartGame(){ running=false; paused=false; clearInterval(spawnTimer); spawnTimer=null; fruits=[]; particles=[]; pointerTrail=[]; score=0; lives=3; coins=0; level=1; updateHUD(); bigStart.style.display='block'; startBtn.disabled=false; gameOverOverlay.style.display='none'; log('Restarted'); }
 function endGame(){
-  running = false; paused = false; clearInterval(spawnTimer); spawnTimer = null;
+  running=false; paused=false; clearInterval(spawnTimer); spawnTimer=null;
   goScore.textContent = score;
   const best = Math.max(Number(localStorage.getItem('fc_best')||0), score);
   localStorage.setItem('fc_best', best);
   goBest.textContent = best;
   gameOverOverlay.style.display = 'flex';
   bigStart.style.display = 'block';
-  log('Game over, final score', score);
+  log('Game over', score);
 }
 function updateHUD(){ scoreEl.textContent = score; livesEl.textContent = lives; coinsEl.textContent = coins; levelEl.textContent = level; }
 
-// improved: when lives change to 0, show Game Over immediately (sliceFruit handles it)
 // UI wiring
 startBtn.addEventListener('click', startGame);
 bigStart.addEventListener('click', startGame);
 pauseBtn.addEventListener('click', pauseGame);
 restartBtn.addEventListener('click', restartGame);
-goRestart.addEventListener('click', ()=>{ gameOverOverlay.style.display='none'; restartGame(); updateHUD(); });
+goRestart.addEventListener('click', ()=>{ gameOverOverlay.style.display='none'; restartGame(); updateHUD();});
 toggleConsole.addEventListener('click', ()=>{ consoleBox.style.display = consoleBox.style.display === 'block' ? 'none' : 'block'; });
 
-// preload + SW register + init UI
+// init: resize + preload
 async function init(){
   resize();
-  // register inline simple SW for caching images (best effort)
-  if('serviceWorker' in navigator){
-    try{
-      const swCode = `
-        const CACHE='fruitcut-inline-v1';
-        self.addEventListener('install', e => { self.skipWaiting();});
-        self.addEventListener('activate', e => { self.clients.claim(); });
-        self.addEventListener('fetch', e => {
-          e.respondWith(caches.match(e.request).then(r => r || fetch(e.request).then(resp => { caches.open(CACHE).then(c=>c.put(e.request, resp.clone())); return resp; }).catch(()=>caches.match('./'))));
-        });
-      `;
-      const blob = new Blob([swCode], {type: 'text/javascript'});
-      const url = URL.createObjectURL(blob);
-      await navigator.serviceWorker.register(url);
-      log('Service worker registered');
-    }catch(err){ log('SW register failed', err && err.message ? err.message : err); }
-  }
-
-  // preload with concurrency 3
+  // preload but handle errors gracefully
   try{
     await preloadAll(3);
-  }catch(e){ log('preload error', e); }
-  // hide loader and enable start
+  }catch(e){ log('preload error', e && e.message ? e.message : e); }
   loaderOverlay.style.display = 'none';
-  startBtn.disabled = false;
-  bigStart.style.display = 'block';
+  startBtn.disabled = false; bigStart.style.display = 'block';
   updateHUD();
-  log('Init done. images loaded: ' + imageBitmapCache.size + ', failed: ' + failed.join(', '));
+  log('Init done. images loaded:', imageBitmapCache.size, 'failed:', failed.join(','));
 }
 init();
 
-// expose for debugging
-window.FruitCut = { start: startGame, pause: pauseGame, restart: restartGame, getState: ()=>({running,score,lives,coins}) };
-
+// expose debug
+window.FruitCut = { start:startGame, pause:pauseGame, restart:restartGame, state: ()=>({running,score,lives}) };
 </script>
 </body>
-                                          </html>
+  </html>
